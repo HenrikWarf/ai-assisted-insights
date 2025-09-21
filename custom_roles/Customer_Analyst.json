@@ -1,0 +1,11 @@
+{
+  "role_name": "Customer Analyst",
+  "gcp_project": "ml-developer-project-fe07",
+  "bq_dataset": "customer_data_retail",
+  "bq_tables": [
+    "customers"
+  ],
+  "has_sa": true,
+  "created_at": "2024-09-19T11:19:00.000Z",
+  "total_records": 5000
+}

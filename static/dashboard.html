@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crazy Fashion Corp - Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  </head>
+  <body>
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="brand"><img class="brand-logo" src="/static/hippo.png" alt="Logo" /> Crazy Fashion Corp</div>
+        <div class="nav-actions">
+          <button class="link" id="logout">Logout</button>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <header class="header" style="margin-top:8px"><h1>Dashboard</h1></header>
+      
+      <!-- Metadata Section -->
+      <div class="metadata-bar">
+        <div class="metadata-item">
+          <span class="metadata-label">Logged in as user =</span>
+          <span class="metadata-value">Henrik Warfvinge</span>
+        </div>
+        <div class="metadata-item">
+          <span class="metadata-label">Last analysis:</span>
+          <span class="metadata-value" id="last-analysis">No analysis yet</span>
+        </div>
+        <div class="metadata-item">
+          <span class="metadata-label">Data freshness:</span>
+          <span class="metadata-value" id="data-freshness">Loading...</span>
+        </div>
+        <div class="metadata-item">
+          <span class="metadata-label">Total records:</span>
+          <span class="metadata-value" id="total-records">Loading...</span>
+        </div>
+      </div>
+      
+      <!-- Priorities Section -->
+      <section class="panel" id="priorities-panel">
+        <div class="panel-header">
+          <h2>
+            <button class="accordion-toggle" id="priorities-toggle" aria-expanded="false" aria-controls="priorities-content">
+              <span class="accordion-icon">▶</span>
+              Your proposed priorities
+            </button>
+          </h2>
+          <div class="actions">
+            <button class="primary" id="analyze">Analyze with Gemini</button>
+            <button class="secondary" id="clear-priorities">Clear Results</button>
+          </div>
+        </div>
+        
+        <div class="accordion-content" id="priorities-content" style="display: none;">
+        
+        <!-- Short Term Priorities -->
+        <div class="priority-section">
+          <div class="section-header">
+            <h3>🚀 Short Term Priorities</h3>
+            <span class="section-subtitle">Last 2 weeks - Immediate actions</span>
+          </div>
+          <div id="short-term-summary" class="summary-card" aria-live="polite" style="display:none">
+            <div class="title">Short Term Summary</div>
+            <div class="body" id="short-term-summary-body"></div>
+          </div>
+          <div class="priority-grid" id="short-term-grid">
+            <div class="priority-card" data-slot="1"></div>
+            <div class="priority-card" data-slot="2"></div>
+            <div class="priority-card" data-slot="3"></div>
+          </div>
+        </div>
+
+        <!-- Long Term Priorities -->
+        <div class="priority-section">
+          <div class="section-header">
+            <h3>🎯 Long Term Priorities</h3>
+            <span class="section-subtitle">Last 90 days - Strategic direction</span>
+          </div>
+          <div id="long-term-summary" class="summary-card" aria-live="polite" style="display:none">
+            <div class="title">Long Term Summary</div>
+            <div class="body" id="long-term-summary-body"></div>
+          </div>
+          <div class="priority-grid" id="long-term-grid">
+            <div class="priority-card" data-slot="1"></div>
+            <div class="priority-card" data-slot="2"></div>
+            <div class="priority-card" data-slot="3"></div>
+          </div>
+        </div>
+        </div>
+      </section>
+      <!-- legacy analysis panel removed; progress now shown inline above cards -->
+      <section class="panel">
+        <h2>Key Performance Indicators</h2>
+        <div id="kpi-grid" class="kpi-grid"></div>
+      </section>
+        <section class="panel" id="content-section-panel">
+          <h2>Content</h2>
+          <div id="section-links" class="section-links" aria-label="Quick links to sections"></div>
+        </section>
+        <section class="panel" id="schema-section-panel" style="display: none;">
+          <h2>Available Data Fields</h2>
+          <div id="schema-info" class="schema-info">
+            <div class="schema-loading">Loading available data fields...</div>
+          </div>
+        </section>
+      <section class="panel" id="custom-viz-section-panel">
+        <h2>Custom Visualizations</h2>
+        <div style="margin-top: 16px;">
+          <button class="primary" id="btn-add-custom-viz" style="color: white !important;"><span style="color: white;">+</span> Add Custom Visualization</button>
+        </div>
+      </section>
+      <section class="panel">
+        <div id="topic-groups" class="topics"></div>
+      </section>
+    </div>
+
+    <!-- Modal markup is loaded dynamically from modal.html -->
+    <div id="modal-mount"></div>
+    
+    <!-- Custom Visualization Modal -->
+    <div id="custom-viz-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="custom-viz-title">Add Custom Visualization</h3>
+          <button class="modal-close" id="custom-viz-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 16px;">
+            <label for="custom-viz-input" style="display: block; margin-bottom: 8px; font-weight: 600;">Describe what you want to visualize:</label>
+                <textarea 
+                  id="custom-viz-input" 
+                  placeholder="Describe what you want to visualize. Examples:
+• 'Show me customer acquisition trends by month' (line chart)
+• 'Compare sales by product category' (bar chart)  
+• 'Breakdown of customers by age group' (pie chart)
+• 'List all high-value customers with details' (table)
+• 'Create a pie chart showing revenue by region'
+• 'Make a line chart of monthly growth'"
+                  style="width: 100%; height: 100px; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical; box-sizing: border-box;"
+                ></textarea>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; color: #374151;">
+              <input type="checkbox" id="enhanced-insights-checkbox" checked style="width: 16px; height: 16px;">
+              <span>🔍 Generate Enhanced Insights</span>
+            </label>
+            <div style="font-size: 12px; color: #6b7280; margin-top: 4px; margin-left: 24px;">
+              Automatically generate AI-powered insights and recommendations based on your chart data
+            </div>
+          </div>
+          <div id="custom-viz-status" style="margin-bottom: 16px; font-size: 14px; color: #666;"></div>
+        </div>
+        <div class="modal-footer" style="margin-top: 20px; padding: 16px 20px; border-top: 1px solid #e5e7eb; display: flex; gap: 12px; justify-content: flex-start;">
+          <button class="primary" id="custom-viz-generate">Generate Visualization</button>
+          <button class="secondary" id="custom-viz-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+    
+    <script src="/static/modal.js"></script>
+    <script src="/static/visualizations.js"></script>
+    <script>
+      // If path is /dashboard/<role_name>, mark session role as custom in client for UI hints
+      (function(){
+        const parts = window.location.pathname.split('/');
+        if (parts.length >= 3 && parts[1] === 'dashboard' && parts[2]) {
+          window.__CUSTOM_ROLE_NAME__ = decodeURIComponent(parts.slice(2).join('/'));
+        }
+      })();
+    </script>
+    <script src="/static/dashboard.js"></script>
+  </body>
+  </html>
+
+

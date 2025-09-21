@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Register New Role / Data</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="brand"><img class="brand-logo" src="/static/hippo.png" alt="Logo" /> Crazy Fashion Corp</div>
+        <div class="nav-actions">
+          <button class="link" onclick="location.href='/'">Home</button>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <div class="page-header">
+        <h1>Create New Role / Data</h1>
+        <p>Connect to Google Cloud BigQuery to load data into a new local SQLite instance for this role.</p>
+      </div>
+
+      <div class="card">
+        <form id="register-form">
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <label style="font-weight:600; color:#374151;">Role Name</label>
+                <input type="text" id="role_name" required placeholder="e.g., Finance Analyst" style="width:100%; padding:12px; border:1px solid #e0e0e0; border-radius:8px; font-size:14px; box-sizing:border-box;"/>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <label style="font-weight:600; color:#374151;">GCP Project ID</label>
+                <input type="text" id="gcp_project" required placeholder="my-gcp-project" style="width:100%; padding:12px; border:1px solid #e0e0e0; border-radius:8px; font-size:14px; box-sizing:border-box;"/>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:30px;">
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <label style="font-weight:600; color:#374151;">BigQuery Dataset</label>
+                <input type="text" id="bq_dataset" required placeholder="analytics_dataset" style="width:100%; padding:12px; border:1px solid #e0e0e0; border-radius:8px; font-size:14px; box-sizing:border-box;"/>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <label style="font-weight:600; color:#374151;">Tables to Import (comma-separated)</label>
+                <input type="text" id="bq_tables" required placeholder="table1, table2" style="width:100%; padding:12px; border:1px solid #e0e0e0; border-radius:8px; font-size:14px; box-sizing:border-box;"/>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <label style="font-weight:600; color:#374151;">Service Account JSON File (optional)</label>
+              <input type="file" id="sa_json_file" accept=".json" style="width:100%; padding:12px; border:1px solid #e0e0e0; border-radius:8px; font-size:14px; box-sizing:border-box;"/>
+              <div style="font-size:12px; color:#6b7280; margin-top:4px;">Upload your service account JSON key file. Leave empty to use default credentials.</div>
+            </div>
+          </div>
+          <div style="margin-top:16px; display:flex; gap:8px;">
+            <button type="submit" class="primary" id="btn-create">Create & Load Data</button>
+            <button type="button" class="link" id="btn-cancel">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel" id="progress-panel" style="display:none;">
+        <div class="panel-header">
+          <div style="font-weight:600;">Setup Progress</div>
+        </div>
+        <div class="steps">
+          <div class="step" id="step-1"><span class="icon"></span><span class="label">Validate config</span><span class="anim"></span></div>
+          <div class="step" id="step-2"><span class="icon"></span><span class="label">Create SQLite instance</span><span class="anim"></span></div>
+          <div class="step" id="step-3"><span class="icon"></span><span class="label">Import from BigQuery</span><span class="anim"></span></div>
+          <div class="step" id="step-4"><span class="icon"></span><span class="label">Analyze with Gemini</span><span class="anim"></span></div>
+          <div class="step" id="step-5"><span class="icon"></span><span class="label">Generate dashboard</span><span class="anim"></span></div>
+        </div>
+        <div id="progress-log" class="summary-card" style="display:none;"></div>
+      </div>
+    </div>
+
+    <script src="/static/register.js"></script>
+  </body>
+  </html>
+
+

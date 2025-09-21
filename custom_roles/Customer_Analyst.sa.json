@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "ml-developer-project-fe07",
+  "private_key_id": "a520155dc918386797d2b4300f60b6cf8c94238c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCpR0bPiRRsJ8oD\ndXnrCYITyoxwI/GvMxjlg/nacIeS3WeaHKyJr7HfHArDZ8EmqaMguztcieI1OuY5\nEz+38fGmezA+nlIDW7Eu3HRcRKOHo8+Ijae9tjBcdz19S6yYx2xbs8DTbJXcYAWi\nn9xs0Xg0+B2r+RbkkrQIV0falZun+lpC6g7FnIpHNI0D23OeRqjrNfCS4Zjdw92A\nXH6/c/+muePSFQgGGKgRR3c75uzo38Z3P430e1AG3QF63xF0Do0yGTLBH7v/sqVS\nGT376cxtJU9xNMFZAMem3JpUw0l0DppMHP/jSPRC7scKStaDB5fIvarz4RigZp/H\nlpVOVE13AgMBAAECggEABLLIwVvhqDrWfZAWKTLjXF9D1Jz6yU0WxNAL8EctTCM/\nC+T92Ph6bGHf3pqTntoYgAESXbgqAiY3W6AwJY/ekCtdJG/KgPNbkJxn0mPJUit2\nyCh+XmKfJwHcQA0IpljqpgTwNi4OXsZ/gYsEWDTcLEQytqI8Q23a91xMz0FVx6y8\no/ix0WQzmB94wYUlItAl+7QEAmFPd5+oQPL53ZEhglzAWoe3HoR2hW0ZqCnRtr/2\ndUlphHv0BARU3zdshZd7zEbOyjEKnMA03cfQ0moZvBC18IpZft4LHSHyA58v7vaR\nYHDTq7/xMoD6b0huOl0Izn1pmVADRHhbBwOrudWrGQKBgQDTUIjIJbssfj5TxzUq\nTT2JXmo1KDQMr7KxJhUttHoTG007QNNnLmZFt4qEvMJb9rCXp++2QKn6owaT/3C2\n+1yqcL454VhxBmuQ50CpnzRZ+Yy1F6QvWGRfEU2x2RcC/iWUzD3H6qjKeiwKDxfl\nnPDpu2YRJeTYyhgwlqPuM28fNQKBgQDNEx/c60/8xZMpeb5CkSvp80CVgLqETtdZ\nBYXUah1hAVM5oJZCqC/Gbg60HPt9BabHnV5dssQsuKcn4ZBy0ROklVw6vS5W9zEt\nwHVqh+0EX0RxFCQOqh9v4LQKvjaKjlPu+vzl+zaeQFy2eHk8yOtPHy9WbjLGCC4i\nuBj4PS3zewKBgQDJbcAkwUqtO92fsIluPFiHRDeLWjpbSXPVR07y1VF0Oxcgf0fE\n2Ebm9/ETXHcMgJeOyKdInFUrNBGGK/0+f1aypWu+8p6ChrMsWjOaPMcDaUyGJvX7\np49ty6m6+Qvlb2tVbmcJ1RZ2g4TNRdvqpPJEarz9ZZjCScpLLp0u51pqbQKBgC44\neD7/nliXY1K+yL4SIDarh8vqZp95cZnz37T/cb2yYcKkShmd9J6hoZjAy4HjKzLk\naiduKj72I16evULTkrzOmSn4B6C8OA5ayVwIZMhOfIuMAZB4kXtSxuGA+6QA7jP3\nx9ZB546FbSAHSTQFCNwdaDrvvWva3iMfISmaCGhPAoGAEO77prOZXn3+rURkdr9v\ni8Ykr1N7fI7n0kkhQYX+1mTxmInPEOp2uA65Xh2tW2N9Ryq1pafIBuYisLjAP9JC\nmspdtdeKFDGNUxt3iCPZ6eT1SyaikIS36nzrgHwYyTIgn0aUl2JZlUvTOf50thT1\nOwO1/O1NxVq0d/drpVGAdf4=\n-----END PRIVATE KEY-----\n",
+  "client_email": "product-automation@ml-developer-project-fe07.iam.gserviceaccount.com",
+  "client_id": "111271005646247424777",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/product-automation%40ml-developer-project-fe07.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

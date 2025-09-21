@@ -1,0 +1,25 @@
+<div id="detail-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-content" role="document">
+    <header class="modal-header">
+      <h3 id="detail-modal-title">Details</h3>
+      <button class="modal-close" aria-label="Close" data-close="true">×</button>
+    </header>
+    <div class="modal-body">
+      <div class="chart-title" style="margin:0 0 8px 0"> <span class="small-muted">(range)</span>
+        <span class="range-local" data-target="detail-modal-canvas">
+          <button data-d="7">7d</button>
+          <button data-d="30">30d</button>
+          <button data-d="90">90d</button>
+        </span>
+      </div>
+      <div class="chart-wrapper" style="max-height:340px">
+        <canvas id="detail-modal-canvas" height="320"></canvas>
+      </div>
+      <div id="detail-modal-table" class="metrics-table" style="margin-top:16px"></div>
+    </div>
+  </div>
+  
+</div>
+
+

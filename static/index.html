@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crazy Fashion Corp - Login</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="navbar">
+      <div class="navbar-inner">
+        <div class="brand"><img class="brand-logo" src="/static/hippo.png" alt="Logo" /> Crazy Fashion Corp</div>
+        <div class="nav-actions">
+          <button class="link" onclick="location.href='/'">Home</button>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <div class="page-header">
+        <img src="/static/hippo.png" alt="Crazy Fashion Corp" class="hero-logo" />
+        <h1>Crazy Fashion Corp</h1>
+        <p>Choose your role to enter the data-driven workspace</p>
+      </div>
+      <div class="middle-center compact">
+        <div class="center-stack">
+          <!-- Existing Roles Section -->
+          <div class="roles-section">
+            <h2 class="section-title">Available Roles</h2>
+            <div class="role-grid">
+              <button class="role-card" id="btn-merch">
+                <div class="role-circle" aria-hidden="true">
+                  <svg class="role-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 5h18M6 8h12l-1 11H7L6 8zM9 5a3 3 0 1 0 6 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div class="role-label">E-commerce Manager</div>
+              </button>
+              <button class="role-card" id="btn-store">
+                <div class="role-circle" aria-hidden="true">
+                  <svg class="role-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 6h16l-1.2 9.6A3 3 0 0 1 15.82 18H8.18a3 3 0 0 1-2.98-2.4L4 6zm3-2a2 2 0 1 1 4 0h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div class="role-label">Marketing Lead</div>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Separator -->
+          <div class="section-separator">
+            <div class="separator-line"></div>
+            <div class="separator-text">or</div>
+            <div class="separator-line"></div>
+          </div>
+          
+          <!-- Add New Role Section -->
+          <div class="add-role-section">
+            <h2 class="section-title">Create New Role</h2>
+            <div class="add-role-container">
+              <button class="role-card add-role-card" id="btn-add-role">
+                <div class="role-circle" aria-hidden="true">
+                  <svg class="role-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+                <div class="role-label">Add New Role / Data</div>
+                <div class="role-description">Connect your BigQuery data and create custom dashboards</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <script src="/static/login.js"></script>
+  </body>
+  </html>
+
+
