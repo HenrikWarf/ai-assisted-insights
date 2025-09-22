@@ -149,9 +149,9 @@ class ExploreActionModal {
     bindNotesEvents() {
         // Notes functionality (support legacy IDs as fallback)
         const getEl = (...ids) => ids.map(id => document.getElementById(id)).find(Boolean);
-        const addBtn = getEl('add-action-note-btn', 'add-note-btn');
-        const saveBtn = getEl('save-action-note-btn', 'save-note-btn');
-        const cancelBtn = getEl('cancel-action-note-btn', 'cancel-note-btn');
+        const addBtn = getEl('add-note-btn', 'add-action-note-btn');
+        const saveBtn = getEl('save-note-btn', 'save-action-note-btn');
+        const cancelBtn = getEl('cancel-note-btn', 'cancel-action-note-btn');
         console.log('Add note button found:', addBtn);
         if (addBtn) {
             // Remove any existing event listeners to avoid duplicates
@@ -464,8 +464,8 @@ class ExploreActionModal {
 
     showAddNoteForm() {
         console.log('showAddNoteForm called');
-        const form = document.getElementById('add-action-note-form') || document.getElementById('add-note-form');
-        const textarea = document.getElementById('action-note-textarea') || document.getElementById('note-textarea');
+        const form = document.getElementById('add-note-form') || document.getElementById('add-action-note-form');
+        const textarea = document.getElementById('note-textarea') || document.getElementById('action-note-textarea');
         console.log('Form element:', form);
         console.log('Textarea element:', textarea);
         if (form) {
@@ -479,14 +479,14 @@ class ExploreActionModal {
     }
 
     hideAddNoteForm() {
-        const form = document.getElementById('add-action-note-form') || document.getElementById('add-note-form');
-        const textarea = document.getElementById('action-note-textarea') || document.getElementById('note-textarea');
+        const form = document.getElementById('add-note-form') || document.getElementById('add-action-note-form');
+        const textarea = document.getElementById('note-textarea') || document.getElementById('action-note-textarea');
         if (form) form.style.display = 'none';
         if (textarea) textarea.value = '';
     }
 
     async saveNote() {
-        const textarea = document.getElementById('action-note-textarea') || document.getElementById('note-textarea');
+        const textarea = document.getElementById('note-textarea') || document.getElementById('action-note-textarea');
         const noteContent = (textarea ? textarea.value : '').trim();
         if (!noteContent) return;
 
