@@ -998,6 +998,21 @@ code { background: #f2f4f7; padding: 2px 6px; border-radius: 4px; }
   min-height: 200px !important;
 }
 
+/* Make tab content more visible */
+.tab-content {
+  border: 2px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+  padding: 20px !important;
+  margin-top: 10px !important;
+}
+
+#tab-notes {
+  background: white !important;
+  border: 1px solid #667eea !important;
+  padding: 20px !important;
+  min-height: 300px !important;
+}
+
 /* Ensure Notes tab elements render even if alternate IDs/classes are used */
 .notes-header {
   display: flex !important;
