@@ -139,7 +139,13 @@ class ExploreActionModal {
         const addBtn = getEl('add-action-note-btn', 'add-note-btn');
         const saveBtn = getEl('save-action-note-btn', 'save-note-btn');
         const cancelBtn = getEl('cancel-action-note-btn', 'cancel-note-btn');
-        if (addBtn) addBtn.addEventListener('click', () => this.showAddNoteForm());
+        console.log('Add note button found:', addBtn);
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                console.log('Add note button clicked');
+                this.showAddNoteForm();
+            });
+        }
         if (saveBtn) saveBtn.addEventListener('click', () => this.saveNote());
         if (cancelBtn) cancelBtn.addEventListener('click', () => this.hideAddNoteForm());
 
@@ -442,10 +448,19 @@ class ExploreActionModal {
     }
 
     showAddNoteForm() {
+        console.log('showAddNoteForm called');
         const form = document.getElementById('add-action-note-form') || document.getElementById('add-note-form');
         const textarea = document.getElementById('action-note-textarea') || document.getElementById('note-textarea');
-        if (form) form.style.display = 'block';
-        if (textarea) textarea.focus();
+        console.log('Form element:', form);
+        console.log('Textarea element:', textarea);
+        if (form) {
+            form.style.display = 'block';
+            console.log('Form display set to block');
+        }
+        if (textarea) {
+            textarea.focus();
+            console.log('Textarea focused');
+        }
     }
 
     hideAddNoteForm() {
