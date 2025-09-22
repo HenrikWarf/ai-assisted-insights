@@ -241,11 +241,11 @@ class ExploreActionModal {
                     <div class="priority-card-modal">
                         <div class="priority-header-modal">
                             <span class="priority-number-modal">${this.currentAction.priorityId}</span>
-                            <h4 class="priority-title-modal">${escapeHtml(priority.title || 'Priority ' + this.currentAction.priorityId)}</h4>
-                            <span class="priority-category-modal">${escapeHtml(priority.category || this.currentAction.gridType || 'general')}</span>
+                            <h4 class="priority-title-modal">${escapeHtml(action.action_title || 'Untitled Action')}</h4>
+                            <span class="priority-category-modal">${escapeHtml(this.currentAction.gridType || 'general')}</span>
                         </div>
                         <div class="priority-description-modal">
-                            ${escapeHtml(priority.why || 'This action was created from a priority analysis. The original priority context is not available for saved actions.')}
+                            ${escapeHtml(action.action_description || 'No description available')}
                         </div>
                     </div>
                 </div>
