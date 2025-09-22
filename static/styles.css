@@ -1800,8 +1800,15 @@ button:hover { background: var(--brand-600); color: #fff; }
 
 /* Action Modal Styles */
 .action-modal {
-  max-width: 1000px;
+  background: white;
+  border-radius: 12px;
   width: 95%;
+  max-width: 1000px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .action-card-modal {
