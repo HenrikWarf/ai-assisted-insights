@@ -152,7 +152,7 @@ class ExploreActionModal {
             console.log('Modal clicked, target:', e.target);
             
             // Handle Add Note button click
-            if (e.target.id === 'add-note-btn' || e.target.id === 'add-action-note-btn') {
+            if (e.target.id === 'add-action-note-btn' || e.target.id === 'add-note-btn') {
                 console.log('Add note button clicked via delegation');
                 e.preventDefault();
                 e.stopPropagation();
@@ -297,7 +297,10 @@ class ExploreActionModal {
         document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
         // Update tab panels
-        document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            console.log('Removing active from panel:', panel.id, 'classes:', panel.className);
+            panel.classList.remove('active');
+        });
         const targetPanel = document.getElementById(`tab-${tabName}`);
         console.log('Target panel:', targetPanel);
         if (targetPanel) {
@@ -307,7 +310,7 @@ class ExploreActionModal {
             // Debug: Log all buttons in the active tab
             if (tabName === 'notes') {
                 console.log('Notes tab content:', targetPanel.innerHTML);
-                const addBtn = targetPanel.querySelector('#add-note-btn');
+                const addBtn = targetPanel.querySelector('#add-note-btn') || targetPanel.querySelector('#add-action-note-btn');
                 console.log('Add note button in tab:', addBtn);
                 if (addBtn) {
                     console.log('Button styles:', window.getComputedStyle(addBtn));
