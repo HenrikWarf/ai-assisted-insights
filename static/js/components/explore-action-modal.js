@@ -401,6 +401,8 @@ class ExploreActionModal {
     updateNotesContent(notes) {
         const content = document.getElementById('action-notes-content');
         
+        console.log('Updating notes content with:', notes);
+        
         if (!notes || notes.length === 0) {
             content.innerHTML = `
                 <div class="empty-state">
@@ -443,6 +445,9 @@ class ExploreActionModal {
         const noteContent = document.getElementById('action-note-textarea').value.trim();
         if (!noteContent) return;
 
+        console.log('Saving note for action:', this.currentAction.data.action_id);
+        console.log('Note content:', noteContent);
+
         if (!this.currentAction.data.action_id) {
             alert('Please generate context first before adding notes.');
             return;
@@ -457,14 +462,19 @@ class ExploreActionModal {
                 })
             });
 
+            console.log('Save note response status:', response.status);
+
             if (response.ok) {
                 const data = await response.json();
+                console.log('Save note response data:', data);
                 // Clear the textarea
                 document.getElementById('action-note-textarea').value = '';
                 this.hideAddNoteForm();
                 // Reload notes to show new note
                 this.updateNotesContent(data.notes);
             } else {
+                const errorText = await response.text();
+                console.error('Save note error response:', errorText);
                 throw new Error('Failed to save note');
             }
         } catch (error) {
