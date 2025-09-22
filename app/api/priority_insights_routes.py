@@ -141,7 +141,7 @@ def api_generate_actions():
         priority_category = priority_data.get('category', 'general')
         
         # Get existing actions to avoid duplicates
-        existing_actions = get_priority_actions(priority_id, session["role"])
+        existing_actions = get_priority_actions(priority_id, grid_type, session["role"])
         
         # Generate action recommendations
         actions = generate_action_recommendations(
