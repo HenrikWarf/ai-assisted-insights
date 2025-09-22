@@ -1075,22 +1075,42 @@ code { background: #f2f4f7; padding: 2px 6px; border-radius: 4px; }
   margin-top: 12px;
 }
 
+.add-note-form[style*="display: block"] {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
 .add-note-form textarea,
 #note-textarea,
 #action-note-textarea {
-  width: 100%;
-  min-height: 100px;
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-sizing: border-box;
+  width: 100% !important;
+  min-height: 100px !important;
+  padding: 10px 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .form-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 8px;
+  display: flex !important;
+  gap: 8px !important;
+  justify-content: flex-end !important;
+  margin-top: 8px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.form-actions button {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  padding: 8px 16px !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
 }
 
 .insights-header,

@@ -486,7 +486,7 @@ class ExploreActionModal {
 
     updateNotesContent(notes) {
         console.log('updateNotesContent called with:', notes);
-        const content = document.getElementById('action-notes-content') || document.getElementById('notes-content');
+        const content = this.modal.querySelector('#action-notes-content, #notes-content');
         console.log('Notes content element:', content);
         
         if (!notes || notes.length === 0) {
@@ -519,8 +519,10 @@ class ExploreActionModal {
 
     showAddNoteForm() {
         console.log('showAddNoteForm called');
-        const form = document.getElementById('add-note-form') || document.getElementById('add-action-note-form');
-        const textarea = document.getElementById('note-textarea') || document.getElementById('action-note-textarea');
+        // Scope to active notes tab within this modal
+        const activeNotesPanel = this.modal.querySelector('#tab-notes.tab-panel.active') || this.modal.querySelector('#tab-notes');
+        const form = activeNotesPanel?.querySelector('#add-action-note-form, #add-note-form');
+        const textarea = activeNotesPanel?.querySelector('#action-note-textarea, #note-textarea');
         console.log('Form element:', form);
         console.log('Textarea element:', textarea);
         if (form) {
@@ -534,14 +536,16 @@ class ExploreActionModal {
     }
 
     hideAddNoteForm() {
-        const form = document.getElementById('add-note-form') || document.getElementById('add-action-note-form');
-        const textarea = document.getElementById('note-textarea') || document.getElementById('action-note-textarea');
+        const activeNotesPanel = this.modal.querySelector('#tab-notes.tab-panel.active') || this.modal.querySelector('#tab-notes');
+        const form = activeNotesPanel?.querySelector('#add-action-note-form, #add-note-form');
+        const textarea = activeNotesPanel?.querySelector('#action-note-textarea, #note-textarea');
         if (form) form.style.display = 'none';
         if (textarea) textarea.value = '';
     }
 
     async saveNote() {
-        const textarea = document.getElementById('note-textarea') || document.getElementById('action-note-textarea');
+        const activeNotesPanel = this.modal.querySelector('#tab-notes.tab-panel.active') || this.modal.querySelector('#tab-notes');
+        const textarea = activeNotesPanel?.querySelector('#action-note-textarea, #note-textarea');
         const noteContent = (textarea ? textarea.value : '').trim();
         if (!noteContent) return;
 
