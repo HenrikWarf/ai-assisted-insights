@@ -1376,11 +1376,25 @@ code { background: #f2f4f7; padding: 2px 6px; border-radius: 4px; }
 
 .modal-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 12px;
   align-items: center;
   padding: 16px 24px;
   border-top: 1px solid var(--border);
-  background: #f8fafc;
+  background: var(--surface);
+}
+
+/* Compact delete icon in header */
+.modal-header .btn-delete-subtle {
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  color: #6b7280;
+}
+.modal-header .btn-delete-subtle:hover {
+  background: #f2f4f7;
+  border-radius: 6px;
+  color: #ef4444;
 }
 
 .error-state {

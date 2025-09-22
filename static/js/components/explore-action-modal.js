@@ -26,6 +26,9 @@ class ExploreActionModal {
                     <div class="modal-header">
                         <h2 id="action-modal-title">Explore Action</h2>
                         <div class="modal-header-actions">
+                            <button class="btn-delete-subtle" id="delete-action-header-btn" title="Delete this action">
+                                🗑️
+                            </button>
                             <button class="btn btn-primary btn-sm" id="save-action-btn" title="Save this action to your workspace">
                                 💾 Save to Workspace
                             </button>
@@ -99,11 +102,9 @@ class ExploreActionModal {
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="modal-footer">
-                            <button class="btn-delete-subtle" id="delete-action-btn" title="Delete this action">🗑️ Delete Action</button>
-                            <button class="btn btn-secondary" id="action-modal-close-footer-btn">Close</button>
-                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="action-modal-close-footer-btn">Close</button>
                     </div>
                 </div>
             </div>
@@ -144,8 +145,8 @@ class ExploreActionModal {
         // Share action
         document.getElementById('share-action-btn').addEventListener('click', () => this.shareAction());
 
-        // Delete action
-        document.getElementById('delete-action-btn').addEventListener('click', () => this.deleteAction());
+        // Delete action (header icon)
+        document.getElementById('delete-action-header-btn').addEventListener('click', () => this.deleteAction());
     }
 
     open(actionData, priorityData, priorityId, gridType) {
