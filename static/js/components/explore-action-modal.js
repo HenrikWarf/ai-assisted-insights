@@ -147,28 +147,39 @@ class ExploreActionModal {
     }
 
     bindNotesEvents() {
-        // Notes functionality (support legacy IDs as fallback)
-        const getEl = (...ids) => ids.map(id => document.getElementById(id)).find(Boolean);
-        const addBtn = getEl('add-note-btn', 'add-action-note-btn');
-        const saveBtn = getEl('save-note-btn', 'save-action-note-btn');
-        const cancelBtn = getEl('cancel-note-btn', 'cancel-action-note-btn');
-        console.log('Add note button found:', addBtn);
-        if (addBtn) {
-            // Remove any existing event listeners to avoid duplicates
-            addBtn.removeEventListener('click', this.showAddNoteForm);
-            addBtn.addEventListener('click', () => {
-                console.log('Add note button clicked');
+        // Use event delegation to handle clicks on the modal
+        this.modal.addEventListener('click', (e) => {
+            console.log('Modal clicked, target:', e.target);
+            
+            // Handle Add Note button click
+            if (e.target.id === 'add-note-btn' || e.target.id === 'add-action-note-btn') {
+                console.log('Add note button clicked via delegation');
+                e.preventDefault();
+                e.stopPropagation();
                 this.showAddNoteForm();
-            });
-        }
-        if (saveBtn) {
-            saveBtn.removeEventListener('click', this.saveNote);
-            saveBtn.addEventListener('click', () => this.saveNote());
-        }
-        if (cancelBtn) {
-            cancelBtn.removeEventListener('click', this.hideAddNoteForm);
-            cancelBtn.addEventListener('click', () => this.hideAddNoteForm());
-        }
+                return;
+            }
+            
+            // Handle Save Note button click
+            if (e.target.id === 'save-note-btn' || e.target.id === 'save-action-note-btn') {
+                console.log('Save note button clicked via delegation');
+                e.preventDefault();
+                e.stopPropagation();
+                this.saveNote();
+                return;
+            }
+            
+            // Handle Cancel Note button click
+            if (e.target.id === 'cancel-note-btn' || e.target.id === 'cancel-action-note-btn') {
+                console.log('Cancel note button clicked via delegation');
+                e.preventDefault();
+                e.stopPropagation();
+                this.hideAddNoteForm();
+                return;
+            }
+        });
+        
+        console.log('Notes event delegation set up');
     }
 
     open(actionData, priorityData, priorityId, gridType) {
