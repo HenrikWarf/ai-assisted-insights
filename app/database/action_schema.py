@@ -85,6 +85,41 @@ def create_action_tables():
         """)
         
         conn.commit()
+
+        # Lightweight migrations: ensure required columns exist on existing installs
+        def column_exists(table: str, column: str) -> bool:
+            cursor.execute(f"PRAGMA table_info({table})")
+            return any(col[1] == column for col in cursor.fetchall())
+
+        # Ensure actions table has all expected columns
+        required_columns = [
+            ("action_id", "TEXT"),
+            ("priority_id", "TEXT"),
+            ("grid_type", "TEXT"),
+            ("user_role", "TEXT"),
+            ("action_title", "TEXT"),
+            ("action_description", "TEXT"),
+            ("action_type", "TEXT"),
+            ("priority_level", "INTEGER"),
+            ("estimated_effort", "TEXT"),
+            ("estimated_impact", "TEXT"),
+            ("gemini_context", "TEXT"),
+            ("next_steps", "TEXT"),
+            ("notes", "TEXT"),
+            ("is_saved_to_workspace", "BOOLEAN"),
+            ("created_ts", "TIMESTAMP"),
+            ("updated_ts", "TIMESTAMP")
+        ]
+
+        for col_name, col_type in required_columns:
+            if not column_exists("actions", col_name):
+                # Add the column if it is missing. For backwards compatibility do not add NOT NULL here.
+                cursor.execute(f"ALTER TABLE actions ADD COLUMN {col_name} {col_type}")
+
+        # Create a unique index on action_id when available (ignores NULLs)
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_action_id ON actions(action_id)")
+
+        conn.commit()
         conn.close()
         logger.info("Action tables created successfully")
         
