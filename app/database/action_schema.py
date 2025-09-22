@@ -116,6 +116,13 @@ def create_action_tables():
                 # Add the column if it is missing. For backwards compatibility do not add NOT NULL here.
                 cursor.execute(f"ALTER TABLE actions ADD COLUMN {col_name} {col_type}")
 
+        # Handle legacy 'role' column: create 'user_role' and backfill if needed
+        has_legacy_role = column_exists("actions", "role")
+        has_user_role = column_exists("actions", "user_role")
+        if has_legacy_role and not has_user_role:
+            cursor.execute("ALTER TABLE actions ADD COLUMN user_role TEXT")
+            cursor.execute("UPDATE actions SET user_role = role WHERE user_role IS NULL")
+
         # Create a unique index on action_id when available (ignores NULLs)
         cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_actions_action_id ON actions(action_id)")
 
@@ -157,17 +164,28 @@ def create_action(action_id: str, priority_id: str, grid_type: str, user_role: s
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        cursor.execute("""
-            INSERT INTO actions (
-                action_id, priority_id, grid_type, user_role, action_title,
-                action_description, action_type, priority_level, estimated_effort,
-                estimated_impact, gemini_context, next_steps
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
+        # Determine if legacy 'role' column exists; if so, include it in insert
+        def column_exists(table: str, column: str) -> bool:
+            cursor.execute(f"PRAGMA table_info({table})")
+            return any(col[1] == column for col in cursor.fetchall())
+
+        columns = [
+            "action_id", "priority_id", "grid_type", "user_role", "action_title",
+            "action_description", "action_type", "priority_level", "estimated_effort",
+            "estimated_impact", "gemini_context", "next_steps"
+        ]
+        values = [
             action_id, priority_id, grid_type, user_role, action_title,
             action_description, action_type, priority_level, estimated_effort,
             estimated_impact, gemini_context, next_steps
-        ))
+        ]
+
+        if column_exists("actions", "role"):
+            columns.insert(4, "role")
+            values.insert(4, user_role)
+
+        placeholders = ", ".join(["?"] * len(values))
+        cursor.execute(f"INSERT INTO actions ({', '.join(columns)}) VALUES ({placeholders})", values)
         
         action_db_id = cursor.lastrowid
         conn.commit()
@@ -196,10 +214,13 @@ def get_action(action_id: str, user_role: str) -> Optional[Dict[str, Any]]:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        cursor.execute("""
-            SELECT * FROM actions 
-            WHERE action_id = ? AND user_role = ?
-        """, (action_id, user_role))
+        def role_col() -> str:
+            cursor.execute("PRAGMA table_info(actions)")
+            cols = [c[1] for c in cursor.fetchall()]
+            return "user_role" if "user_role" in cols else ("role" if "role" in cols else "user_role")
+
+        rc = role_col()
+        cursor.execute(f"SELECT * FROM actions WHERE action_id = ? AND {rc} = ?", (action_id, user_role))
         
         row = cursor.fetchone()
         conn.close()
@@ -248,13 +269,13 @@ def update_action(action_id: str, user_role: str, **kwargs) -> bool:
         
         # Add updated timestamp
         update_fields.append("updated_ts = CURRENT_TIMESTAMP")
+        # Determine role column name
+        cursor.execute("PRAGMA table_info(actions)")
+        cols = [c[1] for c in cursor.fetchall()]
+        rc = "user_role" if "user_role" in cols else ("role" if "role" in cols else "user_role")
+
         values.extend([action_id, user_role])
-        
-        query = f"""
-            UPDATE actions 
-            SET {', '.join(update_fields)}
-            WHERE action_id = ? AND user_role = ?
-        """
+        query = f"UPDATE actions SET {', '.join(update_fields)} WHERE action_id = ? AND {rc} = ?"
         
         cursor.execute(query, values)
         success = cursor.rowcount > 0
@@ -316,11 +337,14 @@ def get_action_notes(action_id: str, user_role: str) -> List[Dict[str, Any]]:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT * FROM action_notes 
             WHERE action_id = ? AND user_role = ?
             ORDER BY created_ts DESC
-        """, (action_id, user_role))
+            """,
+            (action_id, user_role),
+        )
         
         rows = cursor.fetchall()
         conn.close()
@@ -386,11 +410,18 @@ def save_action_to_workspace(action_id: str, user_role: str) -> bool:
         """, (action_id, user_role))
         
         # Update the action's saved status
-        cursor.execute("""
+        # Determine role column name
+        cursor.execute("PRAGMA table_info(actions)")
+        cols = [c[1] for c in cursor.fetchall()]
+        rc = "user_role" if "user_role" in cols else ("role" if "role" in cols else "user_role")
+        cursor.execute(
+            f"""
             UPDATE actions 
             SET is_saved_to_workspace = TRUE, updated_ts = CURRENT_TIMESTAMP
-            WHERE action_id = ? AND user_role = ?
-        """, (action_id, user_role))
+            WHERE action_id = ? AND {rc} = ?
+            """,
+            (action_id, user_role),
+        )
         
         success = cursor.rowcount > 0
         conn.commit()
@@ -418,13 +449,20 @@ def get_workspace_actions(user_role: str) -> List[Dict[str, Any]]:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        cursor.execute("""
+        # Determine role column name
+        cursor.execute("PRAGMA table_info(actions)")
+        cols = [c[1] for c in cursor.fetchall()]
+        rc = "user_role" if "user_role" in cols else ("role" if "role" in cols else "user_role")
+        cursor.execute(
+            f"""
             SELECT a.*, wa.saved_ts as workspace_saved_ts
             FROM actions a
             JOIN workspace_actions wa ON a.action_id = wa.action_id
-            WHERE a.user_role = ? AND wa.user_role = ?
+            WHERE a.{rc} = ? AND wa.user_role = ?
             ORDER BY wa.saved_ts DESC
-        """, (user_role, user_role))
+            """,
+            (user_role, user_role),
+        )
         
         rows = cursor.fetchall()
         conn.close()
@@ -536,10 +574,17 @@ def delete_action(action_id: str, user_role: str) -> bool:
         cursor = conn.cursor()
         
         # Delete action (cascades to notes and shares)
-        cursor.execute("""
+        # Determine role column name
+        cursor.execute("PRAGMA table_info(actions)")
+        cols = [c[1] for c in cursor.fetchall()]
+        rc = "user_role" if "user_role" in cols else ("role" if "role" in cols else "user_role")
+        cursor.execute(
+            f"""
             DELETE FROM actions 
-            WHERE action_id = ? AND user_role = ?
-        """, (action_id, user_role))
+            WHERE action_id = ? AND {rc} = ?
+            """,
+            (action_id, user_role),
+        )
         
         success = cursor.rowcount > 0
         conn.commit()
