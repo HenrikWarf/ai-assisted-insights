@@ -13,6 +13,30 @@ class PriorityExploreModal {
         this.init();
     }
 
+    formatPriorityDescription(priority) {
+        const text = priority.why || '';
+        const replacements = {
+            aov_by_segment: priority.aov_by_segment,
+            ltv_by_source: priority.ltv_by_source,
+            channel_volume_mismatch: priority.channel_volume_mismatch
+        };
+        const tryStringify = (val) => {
+            try {
+                if (val === undefined || val === null) return '';
+                if (typeof val === 'string') return val;
+                return JSON.stringify(val, null, 2);
+            } catch { return ''; }
+        };
+        let output = String(text);
+        Object.entries(replacements).forEach(([key, val]) => {
+            output = output.replace(new RegExp(`${key}:\\s*\\[object Object\\](,\\s*\\[object Object\\])*`, 'g'), `${key}:\n${tryStringify(val)}`);
+            output = output.replace(new RegExp(`${key}\\s*=\\s*\\[object Object\\]`, 'g'), `${key} = ${tryStringify(val)}`);
+        });
+        // Basic escape to prevent HTML injection
+        return output.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;')
+                     .replace(/\n/g, '<br/>');
+    }
+
     init() {
         this.createModal();
         this.bindEvents();
@@ -178,7 +202,7 @@ class PriorityExploreModal {
                     <span class="priority-category-modal">${escapeHtml(priority.category || 'general')}</span>
                 </div>
                 <div class="priority-description-modal">
-                    ${escapeHtml(priority.why || 'No description available')}
+                    ${this.formatPriorityDescription(priority)}
                 </div>
                 ${priority.evidence ? this.renderEvidence(priority.evidence) : ''}
             </div>

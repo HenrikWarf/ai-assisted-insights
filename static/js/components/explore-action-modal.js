@@ -242,6 +242,39 @@ class ExploreActionModal {
         const effortInfo = getEffortInfo(action.estimated_effort);
         const impactInfo = getImpactInfo(action.estimated_impact);
         
+        // Ensure we have a normalized priority object for the Related Action card
+        const priority = (this.currentAction?.priority && this.currentAction.priority.data)
+            ? this.currentAction.priority.data
+            : (this.currentAction?.priority || {});
+        
+        // Attempt to resolve placeholder objects inside text using known priority data
+        const resolveDataPlaceholders = (text, ctx) => {
+            if (!text) return '';
+            let output = String(text);
+            const tryStringify = (val) => {
+                try {
+                    if (val === undefined || val === null) return '';
+                    if (typeof val === 'string') return val;
+                    return JSON.stringify(val, null, 2);
+                } catch { return ''; }
+            };
+            const replacements = {
+                aov_by_segment: ctx?.aov_by_segment,
+                ltv_by_source: ctx?.ltv_by_source,
+                channel_volume_mismatch: ctx?.channel_volume_mismatch
+            };
+            Object.entries(replacements).forEach(([key, val]) => {
+                // Replace common placeholder patterns
+                output = output.replace(new RegExp(`${key}:\\s*\\[object Object\\](,\\s*\\[object Object\\])*`, 'g'), `${key}:\n${tryStringify(val)}`);
+                output = output.replace(new RegExp(`${key}\\s*=\\s*\\[object Object\\]`, 'g'), `${key} = ${tryStringify(val)}`);
+            });
+            return output;
+        };
+
+        // Resolved texts
+        const resolvedActionDesc = resolveDataPlaceholders(action.action_description, priority);
+        const resolvedPriorityWhy = resolveDataPlaceholders(priority.why || action.action_description, priority);
+
         actionInfo.innerHTML = `
             <div class="action-card-modal">
                 <div class="action-header-modal">
@@ -263,18 +296,18 @@ class ExploreActionModal {
                     </div>
                 </div>
                 <div class="action-description-modal">
-                    ${escapeHtml(action.action_description || 'No description available')}
+                    ${this.formatContentText(resolvedActionDesc)}
                 </div>
                 <div class="priority-context-modal">
                     <h4>Related Action:</h4>
                     <div class="priority-card-modal">
                         <div class="priority-header-modal">
                             <span class="priority-number-modal">${this.currentAction.priorityId}</span>
-                            <h4 class="priority-title-modal">${escapeHtml(action.action_title || 'Untitled Action')}</h4>
+                            <h4 class="priority-title-modal">${escapeHtml(action.action_title || priority.title || 'Untitled Action')}</h4>
                             <span class="priority-category-modal">${escapeHtml(this.currentAction.gridType || 'general')}</span>
                         </div>
                         <div class="priority-description-modal">
-                            ${escapeHtml(action.action_description || 'No description available')}
+                            ${this.formatContentText(resolvedPriorityWhy)}
                         </div>
                     </div>
                 </div>
