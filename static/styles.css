@@ -986,20 +986,43 @@ code { background: #f2f4f7; padding: 2px 6px; border-radius: 4px; }
 }
 
 .tab-panel.active {
-  display: block;
+  display: block !important;
+}
+
+/* Force Notes tab to be visible */
+#tab-notes.active {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  min-height: 200px !important;
 }
 
 /* Ensure Notes tab elements render even if alternate IDs/classes are used */
 .notes-header {
-  display: flex;
+  display: flex !important;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  padding: 8px 0;
+}
+
+.notes-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.notes-header button {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .notes-content {
-  display: block;
+  display: block !important;
   padding: 8px 0;
+  min-height: 50px;
 }
 
 .add-note-form {

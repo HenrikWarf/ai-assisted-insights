@@ -302,6 +302,7 @@ class ExploreActionModal {
         console.log('Target panel:', targetPanel);
         if (targetPanel) {
             targetPanel.classList.add('active');
+            console.log('Added active class to panel. Panel classes:', targetPanel.className);
             
             // Debug: Log all buttons in the active tab
             if (tabName === 'notes') {
@@ -311,7 +312,17 @@ class ExploreActionModal {
                 if (addBtn) {
                     console.log('Button styles:', window.getComputedStyle(addBtn));
                 }
+                
+                // Check if tab panel is actually visible
+                const computedStyle = window.getComputedStyle(targetPanel);
+                console.log('Tab panel display:', computedStyle.display);
+                console.log('Tab panel visibility:', computedStyle.visibility);
+                console.log('Tab panel opacity:', computedStyle.opacity);
+                console.log('Tab panel height:', computedStyle.height);
+                console.log('Tab panel width:', computedStyle.width);
             }
+        } else {
+            console.error('Target panel not found for tab:', tabName);
         }
     }
 
