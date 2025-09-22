@@ -123,8 +123,8 @@ class ExploreActionModal {
             if (e.target === this.modal) this.close();
         });
 
-        // Tab switching
-        document.querySelectorAll('.tab-btn').forEach(btn => {
+        // Tab switching (scope to this modal only)
+        this.modal.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
         });
 
@@ -294,11 +294,12 @@ class ExploreActionModal {
         
         // Update tab buttons
         console.log('Updating tab buttons...');
-        document.querySelectorAll('.tab-btn').forEach(btn => {
+        // Scope button updates to this modal only
+        this.modal.querySelectorAll('.tab-btn').forEach(btn => {
             console.log('Removing active from button:', btn.id || btn.textContent, 'classes:', btn.className);
             btn.classList.remove('active');
         });
-        const tabButton = document.querySelector(`[data-tab="${tabName}"]`);
+        const tabButton = this.modal.querySelector(`[data-tab="${tabName}"]`);
         console.log('Found tab button:', tabButton);
         if (tabButton) {
             tabButton.classList.add('active');
@@ -309,11 +310,12 @@ class ExploreActionModal {
 
         // Update tab panels
         console.log('Updating tab panels...');
-        document.querySelectorAll('.tab-panel').forEach(panel => {
+        // Scope panel updates to this modal only
+        this.modal.querySelectorAll('.tab-panel').forEach(panel => {
             console.log('Removing active from panel:', panel.id, 'classes:', panel.className);
             panel.classList.remove('active');
         });
-        const targetPanel = document.getElementById(`tab-${tabName}`);
+        const targetPanel = this.modal.querySelector(`#tab-${tabName}`);
         console.log('Target panel found:', targetPanel);
         if (targetPanel) {
             console.log('Adding active class to panel:', targetPanel.id);
