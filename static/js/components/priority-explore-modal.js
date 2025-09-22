@@ -405,6 +405,13 @@ class PriorityExploreModal {
                         </div>
                     </div>
                     <div class="action-description">${escapeHtml(action.action_description)}</div>
+                    <div class="action-actions">
+                        <button class="btn btn-primary btn-sm explore-action-btn" 
+                                onclick="priorityExploreModal.exploreAction(${JSON.stringify(action).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentPriority.data).replace(/"/g, '&quot;')}, '${this.currentPriority.id}', '${this.currentPriority.gridType}')"
+                                title="Explore this action in detail">
+                            🔍 Explore Action
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -720,6 +727,16 @@ class PriorityExploreModal {
                 <p>${escapeHtml(message)}</p>
             </div>
         `;
+    }
+
+    exploreAction(actionData, priorityData, priorityId, gridType) {
+        // Open the Explore Action modal
+        if (window.exploreActionModal) {
+            window.exploreActionModal.open(actionData, priorityData, priorityId, gridType);
+        } else {
+            console.error('ExploreActionModal not available');
+            alert('Explore Action feature is not available. Please refresh the page.');
+        }
     }
 
     formatInsightsText(text) {

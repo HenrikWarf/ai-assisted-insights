@@ -118,6 +118,30 @@
         </div>
       </section>
       
+      <!-- Saved Actions Section -->
+      <section class="panel" id="saved-actions-panel">
+        <div class="panel-header">
+          <h2>
+            <button class="accordion-toggle" id="saved-actions-toggle" aria-expanded="false" aria-controls="saved-actions-content">
+              <span class="accordion-icon">▶</span>
+              🎯 Saved Actions
+            </button>
+          </h2>
+        </div>
+        <div class="panel-content" id="saved-actions-content" style="display: none;">
+          <div class="saved-actions-container">
+            <div class="saved-actions-header">
+              <p>Your saved actions from the Explore Action feature. These are detailed action plans you can reference and continue working on.</p>
+            </div>
+            <div id="saved-actions-list" class="saved-actions-list">
+              <div class="empty-state">
+                <p>No saved actions yet. Use the "🔍 Explore Action" button in priority insights, then "💾 Save to Workspace" to save your action plans.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
       <!-- legacy analysis panel removed; progress now shown inline above cards -->
       <section class="panel">
         <h2>Key Performance Indicators</h2>
@@ -190,6 +214,7 @@
     <script src="/static/modal.js"></script>
     <script src="/static/visualizations.js"></script>
     <script src="/static/js/components/priority-explore-modal.js"></script>
+    <script src="/static/js/components/explore-action-modal.js"></script>
     <script>
       // If path is /dashboard/<role_name>, mark session role as custom in client for UI hints
       (function(){

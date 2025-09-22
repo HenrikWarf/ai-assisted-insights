@@ -15,6 +15,7 @@ load_dotenv()
 # Import blueprints
 from app.api import auth_bp, metrics_bp, custom_role_bp, analysis_bp
 from app.api.priority_insights_routes import priority_insights_bp
+from app.api.action_routes import action_bp
 
 def create_app():
     """
@@ -36,6 +37,7 @@ def create_app():
     app.register_blueprint(custom_role_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(priority_insights_bp)
+    app.register_blueprint(action_bp)
     
     return app
 

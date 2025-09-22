@@ -1591,6 +1591,26 @@ if (window.__CUSTOM_ROLE_NAME__) {
         }
       });
     }
+    
+    // Load saved actions
+    setTimeout(loadWorkspaceActions, 300);
+    
+    // Add accordion functionality for saved actions
+    const savedActionsToggle = document.getElementById('saved-actions-toggle');
+    const savedActionsContent = document.getElementById('saved-actions-content');
+    
+    if (savedActionsToggle && savedActionsContent) {
+      savedActionsToggle.addEventListener('click', () => {
+        const isExpanded = savedActionsContent.style.display !== 'none';
+        savedActionsContent.style.display = isExpanded ? 'none' : 'block';
+        savedActionsToggle.setAttribute('aria-expanded', !isExpanded);
+        
+        const icon = savedActionsToggle.querySelector('.accordion-icon');
+        if (icon) {
+          icon.textContent = '▶';
+        }
+      });
+    }
   });
 }
 
@@ -1730,7 +1750,7 @@ async function openSavedAnalysis(analysisId) {
                         const actionsData = JSON.parse(analysis.actions_data);
                         const actionsElement = document.getElementById('actions-content');
                         if (actionsElement && actionsData.length > 0) {
-                            const actionsHtml = actionsData.map(action => {
+                            const actionsHtml = actionsData.map((action, actionIdx) => {
                                 // Helper functions for styling
                                 const getPriorityInfo = (level) => {
                                     switch(level) {
@@ -1786,7 +1806,12 @@ async function openSavedAnalysis(analysisId) {
                                                 </button>
                                             </div>
                                         </div>
-                                        <div class="action-description">${escapeHtml(action.action_description)}</div>
+                                        <div class="action-description">${escapeHtml(action.action_description || action.description || '')}</div>
+                                        <div class="action-actions">
+                                            <button class="btn btn-primary btn-sm explore-action-btn explore-action-btn-saved" data-action-index="${actionIdx}" title="Explore this action in detail">
+                                                🔍 Explore Action
+                                            </button>
+                                        </div>
                                     </div>
                                 `;
                             }).join('');
@@ -1796,6 +1821,31 @@ async function openSavedAnalysis(analysisId) {
                                     ${actionsHtml}
                                 </div>
                             `;
+
+                            // Wire up Explore Action buttons for saved analyses
+                            const exploreBtns = actionsElement.querySelectorAll('.explore-action-btn-saved');
+                            exploreBtns.forEach(btn => {
+                                btn.addEventListener('click', () => {
+                                    const idx = parseInt(btn.getAttribute('data-action-index'), 10);
+                                    const raw = actionsData[idx] || {};
+                                    const normalized = {
+                                        action_title: raw.action_title || raw.title || '',
+                                        action_description: raw.action_description || raw.description || '',
+                                        priority_level: raw.priority_level || 1,
+                                        estimated_effort: raw.estimated_effort || null,
+                                        estimated_impact: raw.estimated_impact || null
+                                    };
+                                    if (window.priorityExploreModal && window.exploreActionModal) {
+                                        window.priorityExploreModal.exploreAction(normalized, priorityData, analysis.priority_id, analysis.grid_type);
+                                    } else if (window.priorityExploreModal) {
+                                        window.priorityExploreModal.exploreAction(normalized, priorityData, analysis.priority_id, analysis.grid_type);
+                                    } else if (window.exploreActionModal) {
+                                        window.exploreActionModal.open(normalized, priorityData, analysis.priority_id, analysis.grid_type);
+                                    } else {
+                                        alert('Explore Action feature is not available. Please refresh the page.');
+                                    }
+                                });
+                            });
                         }
                     }
                     
@@ -1859,6 +1909,182 @@ async function deleteSavedAnalysis(analysisId) {
     } catch (error) {
         console.error('Error deleting saved analysis:', error);
         alert('Failed to delete analysis. Please try again.');
+    }
+}
+
+// Saved Actions Functionality
+async function loadWorkspaceActions() {
+    console.log('Loading saved actions...');
+    try {
+        const response = await fetch('/api/actions/workspace');
+        console.log('Response status:', response.status);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Saved actions data:', data);
+            renderSavedActions(data.actions);
+        } else {
+            console.error('Failed to load saved actions, status:', response.status);
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+        }
+    } catch (error) {
+        console.error('Error loading saved actions:', error);
+    }
+}
+
+// Render saved actions
+function renderSavedActions(actions) {
+    console.log('Rendering saved actions:', actions);
+    const container = document.getElementById('saved-actions-list');
+    
+    if (!container) {
+        console.error('Saved actions container not found!');
+        return;
+    }
+    
+    if (!actions || actions.length === 0) {
+        console.log('No saved actions found, showing empty state');
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>No saved actions yet. Use the "🔍 Explore Action" button in priority insights, then "💾 Save to Workspace" to save your action plans.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    console.log(`Rendering ${actions.length} saved actions`);
+    
+    const actionsHtml = actions.map(action => {
+        // Helper function to get icon and class for priority
+        const getPriorityInfo = (level) => {
+            switch(level) {
+                case 1: case 'high': return { icon: '🔴', class: 'priority-high' };
+                case 2: case 'medium': return { icon: '🟡', class: 'priority-medium' };
+                case 3: case 'low': return { icon: '🟢', class: 'priority-low' };
+                default: return { icon: '⚪', class: '' };
+            }
+        };
+        
+        // Helper function to get icon and class for effort
+        const getEffortInfo = (effort) => {
+            switch(effort?.toLowerCase()) {
+                case 'high': return { icon: '⚡', class: 'effort-high' };
+                case 'medium': return { icon: '⚖️', class: 'effort-medium' };
+                case 'low': return { icon: '🐌', class: 'effort-low' };
+                default: return { icon: '❓', class: '' };
+            }
+        };
+        
+        // Helper function to get icon and class for impact
+        const getImpactInfo = (impact) => {
+            switch(impact?.toLowerCase()) {
+                case 'high': return { icon: '🚀', class: 'impact-high' };
+                case 'medium': return { icon: '📈', class: 'impact-medium' };
+                case 'low': return { icon: '📊', class: 'impact-low' };
+                default: return { icon: '❓', class: '' };
+            }
+        };
+        
+        const priorityInfo = getPriorityInfo(action.priority_level);
+        const effortInfo = getEffortInfo(action.estimated_effort);
+        const impactInfo = getImpactInfo(action.estimated_impact);
+        
+        return `
+            <div class="saved-action-item">
+                <div class="saved-action-header">
+                    <h4 class="saved-action-title">${escapeHtml(action.action_title)}</h4>
+                    <div class="saved-action-meta">
+                        <span class="action-priority ${priorityInfo.class}">
+                            ${priorityInfo.icon} Priority ${action.priority_level}
+                        </span>
+                        ${action.estimated_effort ? `
+                            <span class="action-effort ${effortInfo.class}">
+                                ${effortInfo.icon} Effort: ${action.estimated_effort}
+                            </span>
+                        ` : ''}
+                        ${action.estimated_impact ? `
+                            <span class="action-impact ${impactInfo.class}">
+                                ${impactInfo.icon} Impact: ${action.estimated_impact}
+                            </span>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="saved-action-description">${escapeHtml(action.action_description)}</div>
+                <div class="saved-action-actions">
+                    <button class="saved-action-btn saved-action-btn-primary" onclick="openSavedAction('${action.action_id}')">
+                        🔍 View Action
+                    </button>
+                    <button class="saved-action-btn saved-action-btn-danger" onclick="deleteSavedAction('${action.action_id}')">
+                        🗑️ Delete
+                    </button>
+                </div>
+                <div class="saved-action-footer">
+                    <span class="saved-action-type">${action.grid_type}</span>
+                    <span class="saved-action-date">Saved: ${new Date(action.workspace_saved_ts).toLocaleString()}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = actionsHtml;
+    console.log('Saved actions rendered successfully');
+}
+
+// Open saved action in modal
+async function openSavedAction(actionId) {
+    try {
+        const response = await fetch(`/api/actions/${actionId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch action');
+        }
+        
+        const data = await response.json();
+        const action = data.action;
+        
+        if (!action) {
+            alert('Action not found');
+            return;
+        }
+        
+        // Create mock priority data for the modal
+        const priorityData = {
+            title: `Priority ${action.priority_id}`,
+            why: 'Saved action from priority analysis',
+            category: 'general'
+        };
+        
+        // Open the Explore Action modal
+        if (window.exploreActionModal) {
+            window.exploreActionModal.open(action, priorityData, action.priority_id, action.grid_type);
+        } else {
+            alert('Explore Action modal not available. Please refresh the page.');
+        }
+    } catch (error) {
+        console.error('Error opening saved action:', error);
+        alert('Failed to open saved action. Please try again.');
+    }
+}
+
+// Delete saved action
+async function deleteSavedAction(actionId) {
+    if (!confirm('Are you sure you want to delete this action? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/actions/${actionId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            await loadWorkspaceActions();
+        } else {
+            throw new Error('Failed to delete action');
+        }
+    } catch (error) {
+        console.error('Error deleting saved action:', error);
+        alert('Failed to delete action. Please try again.');
     }
 }
 
