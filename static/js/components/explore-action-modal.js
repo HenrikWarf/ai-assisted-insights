@@ -269,11 +269,24 @@ class ExploreActionModal {
             return;
         }
 
+        console.log('Loading existing action data for:', this.currentAction.data.action_id);
+        console.log('Current action data:', this.currentAction.data);
+
+        // Check if we already have context and next steps data
+        if (this.currentAction.data.gemini_context || this.currentAction.data.next_steps) {
+            console.log('Using existing data from action object');
+            this.updateContextContent(this.currentAction.data.gemini_context);
+            this.updateNextStepsContent(this.currentAction.data.next_steps);
+            this.updateNotesContent(this.currentAction.data.notes || []);
+            return;
+        }
+
         try {
             const response = await fetch(`/api/actions/${this.currentAction.data.action_id}`);
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('Loaded action data from API:', data);
                 this.currentAction.data = data.action;
                 this.updateContextContent(data.action.gemini_context);
                 this.updateNextStepsContent(data.action.next_steps);
