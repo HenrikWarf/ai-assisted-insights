@@ -254,13 +254,19 @@ class ExploreActionModal {
     }
 
     switchTab(tabName) {
+        console.log('Switching to tab:', tabName);
+        
         // Update tab buttons
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
         // Update tab panels
         document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
-        document.getElementById(`tab-${tabName}`).classList.add('active');
+        const targetPanel = document.getElementById(`tab-${tabName}`);
+        console.log('Target panel:', targetPanel);
+        if (targetPanel) {
+            targetPanel.classList.add('active');
+        }
     }
 
     async loadActionData() {
@@ -399,7 +405,9 @@ class ExploreActionModal {
     }
 
     updateNotesContent(notes) {
+        console.log('updateNotesContent called with:', notes);
         const content = document.getElementById('action-notes-content');
+        console.log('Notes content element:', content);
         
         if (!notes || notes.length === 0) {
             content.innerHTML = `
