@@ -153,7 +153,7 @@ class ExploreActionModal {
             
             // Handle Add Note button click
             if (e.target.id === 'add-action-note-btn' || e.target.id === 'add-note-btn') {
-                console.log('Add note button clicked via delegation');
+                console.log('Add note button clicked via delegation, ID:', e.target.id);
                 e.preventDefault();
                 e.stopPropagation();
                 this.showAddNoteForm();

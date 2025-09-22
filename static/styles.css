@@ -1003,17 +1003,13 @@ code { background: #f2f4f7; padding: 2px 6px; border-radius: 4px; }
   display: none !important;
 }
 
-/* Make tab content more visible */
+/* Make tab content more visible - removed borders and background */
 .tab-content {
-  border: 2px solid #e2e8f0 !important;
-  background: #f8fafc !important;
   padding: 20px !important;
   margin-top: 10px !important;
 }
 
 #tab-notes.active {
-  background: white !important;
-  border: 1px solid #667eea !important;
   padding: 20px !important;
   min-height: 300px !important;
 }
