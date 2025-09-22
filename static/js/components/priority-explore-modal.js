@@ -210,22 +210,50 @@ class PriorityExploreModal {
     }
 
     renderEvidence(evidence) {
+        const toTable = (items) => {
+            if (!Array.isArray(items) || items.length === 0) return '';
+            const keys = Array.from(items.reduce((set, item) => {
+                Object.keys(item || {}).forEach(k => set.add(k));
+                return set;
+            }, new Set()));
+            const thead = `<thead><tr>${keys.map(k => `<th>${escapeHtml(k)}</th>`).join('')}</tr></thead>`;
+            const rows = items.map(it => `<tr>${keys.map(k => `<td>${escapeHtml(String(it?.[k] ?? ''))}</td>`).join('')}</tr>`).join('');
+            return `<table class="evidence-table">${thead}<tbody>${rows}</tbody></table>`;
+        };
+
         let evidenceHtml = '';
         try {
             const evObj = typeof evidence === 'string' ? JSON.parse(evidence) : evidence;
-            if (Array.isArray(evObj)) {
-                evidenceHtml = evObj.map(e => 
-                    `<div class="evidence-item-modal"><strong>${escapeHtml(e.metric || e.name || 'Metric')}:</strong> ${escapeHtml(String(e.value || e.val || ''))}</div>`
-                ).join('');
-            } else if (typeof evObj === 'object') {
-                evidenceHtml = Object.entries(evObj)
-                    .map(([key, value]) => `<div class="evidence-item-modal"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(value))}</div>`)
-                    .join('');
+            if (evObj && typeof evObj === 'object' && !Array.isArray(evObj)) {
+                evidenceHtml = Object.entries(evObj).map(([key, value]) => {
+                    if (Array.isArray(value) && value.length && typeof value[0] === 'object') {
+                        return `
+                            <div class="evidence-item-modal">
+                                <div><strong>${escapeHtml(key)}:</strong></div>
+                                ${toTable(value)}
+                            </div>
+                        `;
+                    }
+                    if (value && typeof value === 'object') {
+                        return `
+                            <div class="evidence-item-modal">
+                                <div><strong>${escapeHtml(key)}:</strong></div>
+                                <pre class="evidence-pre">${escapeHtml(JSON.stringify(value, null, 2))}</pre>
+                            </div>
+                        `;
+                    }
+                    return `<div class="evidence-item-modal"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(value ?? ''))}</div>`;
+                }).join('');
+            } else if (Array.isArray(evObj)) {
+                // Generic array of key/value pairs
+                evidenceHtml = toTable(evObj);
+            } else if (evObj != null) {
+                evidenceHtml = `<div class="evidence-item-modal">${escapeHtml(String(evObj))}</div>`;
             }
         } catch (e) {
             evidenceHtml = `<div class="evidence-item-modal">${escapeHtml(String(evidence))}</div>`;
         }
-        
+
         return evidenceHtml ? `<div class="priority-evidence-modal">${evidenceHtml}</div>` : '';
     }
 
