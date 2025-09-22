@@ -149,11 +149,8 @@ class ExploreActionModal {
     bindNotesEvents() {
         // Use event delegation to handle clicks on the modal
         this.modal.addEventListener('click', (e) => {
-            console.log('Modal clicked, target:', e.target);
-            
             // Handle Add Note button click
             if (e.target.id === 'add-action-note-btn' || e.target.id === 'add-note-btn') {
-                console.log('Add note button clicked via delegation, ID:', e.target.id);
                 e.preventDefault();
                 e.stopPropagation();
                 this.showAddNoteForm();
@@ -162,7 +159,6 @@ class ExploreActionModal {
             
             // Handle Save Note button click
             if (e.target.id === 'save-note-btn' || e.target.id === 'save-action-note-btn') {
-                console.log('Save note button clicked via delegation');
                 e.preventDefault();
                 e.stopPropagation();
                 this.saveNote();
@@ -171,15 +167,12 @@ class ExploreActionModal {
             
             // Handle Cancel Note button click
             if (e.target.id === 'cancel-note-btn' || e.target.id === 'cancel-action-note-btn') {
-                console.log('Cancel note button clicked via delegation');
                 e.preventDefault();
                 e.stopPropagation();
                 this.hideAddNoteForm();
                 return;
             }
         });
-        
-        console.log('Notes event delegation set up');
     }
 
     open(actionData, priorityData, priorityId, gridType) {
@@ -290,63 +283,19 @@ class ExploreActionModal {
     }
 
     switchTab(tabName) {
-        console.log('=== switchTab called with:', tabName, '===');
-        
         // Update tab buttons
-        console.log('Updating tab buttons...');
-        // Scope button updates to this modal only
-        this.modal.querySelectorAll('.tab-btn').forEach(btn => {
-            console.log('Removing active from button:', btn.id || btn.textContent, 'classes:', btn.className);
-            btn.classList.remove('active');
-        });
+        this.modal.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         const tabButton = this.modal.querySelector(`[data-tab="${tabName}"]`);
-        console.log('Found tab button:', tabButton);
         if (tabButton) {
             tabButton.classList.add('active');
-            console.log('Added active to button. Button classes:', tabButton.className);
-        } else {
-            console.error('Tab button not found for:', tabName);
         }
 
         // Update tab panels
-        console.log('Updating tab panels...');
-        // Scope panel updates to this modal only
-        this.modal.querySelectorAll('.tab-panel').forEach(panel => {
-            console.log('Removing active from panel:', panel.id, 'classes:', panel.className);
-            panel.classList.remove('active');
-        });
+        this.modal.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
         const targetPanel = this.modal.querySelector(`#tab-${tabName}`);
-        console.log('Target panel found:', targetPanel);
         if (targetPanel) {
-            console.log('Adding active class to panel:', targetPanel.id);
             targetPanel.classList.add('active');
-            console.log('Panel classes after adding active:', targetPanel.className);
-            
-            // Verify the class was actually added
-            const hasActive = targetPanel.classList.contains('active');
-            console.log('Panel has active class:', hasActive);
-            
-            // Debug: Log all buttons in the active tab
-            if (tabName === 'notes') {
-                console.log('Notes tab content:', targetPanel.innerHTML);
-                const addBtn = targetPanel.querySelector('#add-note-btn') || targetPanel.querySelector('#add-action-note-btn');
-                console.log('Add note button in tab:', addBtn);
-                if (addBtn) {
-                    console.log('Button styles:', window.getComputedStyle(addBtn));
-                }
-                
-                // Check if tab panel is actually visible
-                const computedStyle = window.getComputedStyle(targetPanel);
-                console.log('Tab panel display:', computedStyle.display);
-                console.log('Tab panel visibility:', computedStyle.visibility);
-                console.log('Tab panel opacity:', computedStyle.opacity);
-                console.log('Tab panel height:', computedStyle.height);
-                console.log('Tab panel width:', computedStyle.width);
-            }
-        } else {
-            console.error('Target panel not found for tab:', tabName);
         }
-        console.log('=== switchTab completed ===');
     }
 
     async loadActionData() {
@@ -485,9 +434,7 @@ class ExploreActionModal {
     }
 
     updateNotesContent(notes) {
-        console.log('updateNotesContent called with:', notes);
         const content = this.modal.querySelector('#action-notes-content, #notes-content');
-        console.log('Notes content element:', content);
         
         if (!notes || notes.length === 0) {
             content.innerHTML = `
@@ -518,20 +465,15 @@ class ExploreActionModal {
     }
 
     showAddNoteForm() {
-        console.log('showAddNoteForm called');
         // Scope to active notes tab within this modal
         const activeNotesPanel = this.modal.querySelector('#tab-notes.tab-panel.active') || this.modal.querySelector('#tab-notes');
         const form = activeNotesPanel?.querySelector('#add-action-note-form, #add-note-form');
         const textarea = activeNotesPanel?.querySelector('#action-note-textarea, #note-textarea');
-        console.log('Form element:', form);
-        console.log('Textarea element:', textarea);
         if (form) {
             form.style.display = 'block';
-            console.log('Form display set to block');
         }
         if (textarea) {
             textarea.focus();
-            console.log('Textarea focused');
         }
     }
 
