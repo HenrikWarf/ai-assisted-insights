@@ -2042,6 +2042,8 @@ async function openSavedAction(actionId) {
         const data = await response.json();
         const action = data.action;
         
+        console.log('Raw action data from API:', action);
+        
         if (!action) {
             alert('Action not found');
             return;
@@ -2071,6 +2073,9 @@ async function openSavedAction(actionId) {
             created_ts: action.created_ts,
             updated_ts: action.updated_ts
         };
+        
+        console.log('Normalized action data:', normalizedAction);
+        console.log('Priority data:', priorityData);
         
         // Open the Explore Action modal
         if (window.exploreActionModal) {
