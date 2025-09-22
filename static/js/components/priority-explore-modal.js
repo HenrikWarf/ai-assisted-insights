@@ -220,6 +220,15 @@ class PriorityExploreModal {
             const rows = items.map(it => `<tr>${keys.map(k => `<td>${escapeHtml(String(it?.[k] ?? ''))}</td>`).join('')}</tr>`).join('');
             return `<table class="evidence-table">${thead}<tbody>${rows}</tbody></table>`;
         };
+        const toKeyValueTable = (obj) => {
+            if (!obj || typeof obj !== 'object') return '';
+            const rows = Object.entries(obj).map(([k, v]) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(String(v ?? ''))}</td></tr>`).join('');
+            return `<table class="evidence-table"><tbody>${rows}</tbody></table>`;
+        };
+        const isPrimitiveObject = (obj) => {
+            if (!obj || typeof obj !== 'object') return false;
+            return Object.values(obj).every(v => (v === null) || (typeof v !== 'object'));
+        };
 
         let evidenceHtml = '';
         try {
@@ -231,6 +240,14 @@ class PriorityExploreModal {
                             <div class="evidence-item-modal">
                                 <div><strong>${escapeHtml(key)}:</strong></div>
                                 ${toTable(value)}
+                            </div>
+                        `;
+                    }
+                    if (isPrimitiveObject(value)) {
+                        return `
+                            <div class="evidence-item-modal">
+                                <div><strong>${escapeHtml(key)}:</strong></div>
+                                ${toKeyValueTable(value)}
                             </div>
                         `;
                     }
@@ -248,7 +265,11 @@ class PriorityExploreModal {
                 // Generic array of key/value pairs
                 evidenceHtml = toTable(evObj);
             } else if (evObj != null) {
-                evidenceHtml = `<div class="evidence-item-modal">${escapeHtml(String(evObj))}</div>`;
+                if (isPrimitiveObject(evObj)) {
+                    evidenceHtml = toKeyValueTable(evObj);
+                } else {
+                    evidenceHtml = `<div class="evidence-item-modal"><pre class="evidence-pre">${escapeHtml(JSON.stringify(evObj, null, 2))}</pre></div>`;
+                }
             }
         } catch (e) {
             evidenceHtml = `<div class="evidence-item-modal">${escapeHtml(String(evidence))}</div>`;
