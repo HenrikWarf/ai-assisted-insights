@@ -150,6 +150,12 @@ class ExploreActionModal {
     }
 
     open(actionData, priorityData, priorityId, gridType) {
+        console.log('Opening Explore Action modal with data:');
+        console.log('Action data:', actionData);
+        console.log('Priority data:', priorityData);
+        console.log('Priority ID:', priorityId);
+        console.log('Grid type:', gridType);
+        
         this.currentAction = {
             data: actionData,
             priority: priorityData,
@@ -271,6 +277,8 @@ class ExploreActionModal {
 
         // Check if we already have context and next steps data
         if (this.currentAction.data.gemini_context || this.currentAction.data.next_steps) {
+            console.log('Using existing action data for context/next steps');
+            console.log('Notes data from existing action:', this.currentAction.data.notes);
             this.updateContextContent(this.currentAction.data.gemini_context);
             this.updateNextStepsContent(this.currentAction.data.next_steps);
             this.updateNotesContent(this.currentAction.data.notes || []);
