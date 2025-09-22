@@ -150,12 +150,6 @@ class ExploreActionModal {
     }
 
     open(actionData, priorityData, priorityId, gridType) {
-        console.log('Opening Explore Action modal with data:');
-        console.log('Action data:', actionData);
-        console.log('Priority data:', priorityData);
-        console.log('Priority ID:', priorityId);
-        console.log('Grid type:', gridType);
-        
         this.currentAction = {
             data: actionData,
             priority: priorityData,
@@ -277,8 +271,6 @@ class ExploreActionModal {
 
         // Check if we already have context and next steps data
         if (this.currentAction.data.gemini_context || this.currentAction.data.next_steps) {
-            console.log('Using existing action data for context/next steps');
-            console.log('Notes data from existing action:', this.currentAction.data.notes);
             this.updateContextContent(this.currentAction.data.gemini_context);
             this.updateNextStepsContent(this.currentAction.data.next_steps);
             this.updateNotesContent(this.currentAction.data.notes || []);
@@ -409,8 +401,6 @@ class ExploreActionModal {
     updateNotesContent(notes) {
         const content = document.getElementById('action-notes-content');
         
-        console.log('Updating notes content with:', notes);
-        
         if (!notes || notes.length === 0) {
             content.innerHTML = `
                 <div class="empty-state">
@@ -453,9 +443,6 @@ class ExploreActionModal {
         const noteContent = document.getElementById('action-note-textarea').value.trim();
         if (!noteContent) return;
 
-        console.log('Saving note for action:', this.currentAction.data.action_id);
-        console.log('Note content:', noteContent);
-
         if (!this.currentAction.data.action_id) {
             alert('Please generate context first before adding notes.');
             return;
@@ -470,11 +457,8 @@ class ExploreActionModal {
                 })
             });
 
-            console.log('Save note response status:', response.status);
-
             if (response.ok) {
                 const data = await response.json();
-                console.log('Save note response data:', data);
                 // Clear the textarea
                 document.getElementById('action-note-textarea').value = '';
                 this.hideAddNoteForm();
