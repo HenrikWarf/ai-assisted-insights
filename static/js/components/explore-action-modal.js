@@ -241,11 +241,11 @@ class ExploreActionModal {
                     <div class="priority-card-modal">
                         <div class="priority-header-modal">
                             <span class="priority-number-modal">${this.currentAction.priorityId}</span>
-                            <h4 class="priority-title-modal">${escapeHtml(priority.title || 'Untitled Priority')}</h4>
-                            <span class="priority-category-modal">${escapeHtml(priority.category || 'general')}</span>
+                            <h4 class="priority-title-modal">${escapeHtml(priority.title || 'Priority ' + this.currentAction.priorityId)}</h4>
+                            <span class="priority-category-modal">${escapeHtml(priority.category || this.currentAction.gridType || 'general')}</span>
                         </div>
                         <div class="priority-description-modal">
-                            ${escapeHtml(priority.why || 'No description available')}
+                            ${escapeHtml(priority.why || 'This action was created from a priority analysis. The original priority context is not available for saved actions.')}
                         </div>
                     </div>
                 </div>
@@ -269,12 +269,8 @@ class ExploreActionModal {
             return;
         }
 
-        console.log('Loading existing action data for:', this.currentAction.data.action_id);
-        console.log('Current action data:', this.currentAction.data);
-
         // Check if we already have context and next steps data
         if (this.currentAction.data.gemini_context || this.currentAction.data.next_steps) {
-            console.log('Using existing data from action object');
             this.updateContextContent(this.currentAction.data.gemini_context);
             this.updateNextStepsContent(this.currentAction.data.next_steps);
             this.updateNotesContent(this.currentAction.data.notes || []);
@@ -286,7 +282,6 @@ class ExploreActionModal {
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('Loaded action data from API:', data);
                 this.currentAction.data = data.action;
                 this.updateContextContent(data.action.gemini_context);
                 this.updateNextStepsContent(data.action.next_steps);
