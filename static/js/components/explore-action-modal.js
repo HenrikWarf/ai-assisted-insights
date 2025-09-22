@@ -410,7 +410,7 @@ class ExploreActionModal {
 
     updateNotesContent(notes) {
         console.log('updateNotesContent called with:', notes);
-        const content = document.getElementById('action-notes-content');
+        const content = document.getElementById('action-notes-content') || document.getElementById('notes-content');
         console.log('Notes content element:', content);
         
         if (!notes || notes.length === 0) {
