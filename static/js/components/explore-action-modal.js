@@ -302,6 +302,16 @@ class ExploreActionModal {
         console.log('Target panel:', targetPanel);
         if (targetPanel) {
             targetPanel.classList.add('active');
+            
+            // Debug: Log all buttons in the active tab
+            if (tabName === 'notes') {
+                console.log('Notes tab content:', targetPanel.innerHTML);
+                const addBtn = targetPanel.querySelector('#add-note-btn');
+                console.log('Add note button in tab:', addBtn);
+                if (addBtn) {
+                    console.log('Button styles:', window.getComputedStyle(addBtn));
+                }
+            }
         }
     }
 
