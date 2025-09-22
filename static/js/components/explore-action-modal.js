@@ -134,20 +134,7 @@ class ExploreActionModal {
         // Generate next steps
         document.getElementById('generate-next-steps-btn').addEventListener('click', () => this.generateNextSteps());
 
-        // Notes functionality (support legacy IDs as fallback)
-        const getEl = (...ids) => ids.map(id => document.getElementById(id)).find(Boolean);
-        const addBtn = getEl('add-action-note-btn', 'add-note-btn');
-        const saveBtn = getEl('save-action-note-btn', 'save-note-btn');
-        const cancelBtn = getEl('cancel-action-note-btn', 'cancel-note-btn');
-        console.log('Add note button found:', addBtn);
-        if (addBtn) {
-            addBtn.addEventListener('click', () => {
-                console.log('Add note button clicked');
-                this.showAddNoteForm();
-            });
-        }
-        if (saveBtn) saveBtn.addEventListener('click', () => this.saveNote());
-        if (cancelBtn) cancelBtn.addEventListener('click', () => this.hideAddNoteForm());
+        // Notes functionality will be bound in bindNotesEvents()
 
         // Save to workspace
         document.getElementById('save-action-btn').addEventListener('click', () => this.saveToWorkspace());
@@ -157,6 +144,31 @@ class ExploreActionModal {
 
         // Delete action (header icon)
         document.getElementById('delete-action-header-btn').addEventListener('click', () => this.deleteAction());
+    }
+
+    bindNotesEvents() {
+        // Notes functionality (support legacy IDs as fallback)
+        const getEl = (...ids) => ids.map(id => document.getElementById(id)).find(Boolean);
+        const addBtn = getEl('add-action-note-btn', 'add-note-btn');
+        const saveBtn = getEl('save-action-note-btn', 'save-note-btn');
+        const cancelBtn = getEl('cancel-action-note-btn', 'cancel-note-btn');
+        console.log('Add note button found:', addBtn);
+        if (addBtn) {
+            // Remove any existing event listeners to avoid duplicates
+            addBtn.removeEventListener('click', this.showAddNoteForm);
+            addBtn.addEventListener('click', () => {
+                console.log('Add note button clicked');
+                this.showAddNoteForm();
+            });
+        }
+        if (saveBtn) {
+            saveBtn.removeEventListener('click', this.saveNote);
+            saveBtn.addEventListener('click', () => this.saveNote());
+        }
+        if (cancelBtn) {
+            cancelBtn.removeEventListener('click', this.hideAddNoteForm);
+            cancelBtn.addEventListener('click', () => this.hideAddNoteForm());
+        }
     }
 
     open(actionData, priorityData, priorityId, gridType) {
@@ -171,6 +183,9 @@ class ExploreActionModal {
         this.loadActionData();
         this.modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
+        
+        // Re-bind events after modal is displayed to ensure elements exist
+        this.bindNotesEvents();
         
         // Check save status after a short delay
         setTimeout(() => {
