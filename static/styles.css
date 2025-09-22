@@ -989,6 +989,42 @@ code { background: #f2f4f7; padding: 2px 6px; border-radius: 4px; }
   display: block;
 }
 
+/* Ensure Notes tab elements render even if alternate IDs/classes are used */
+.notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.notes-content {
+  display: block;
+  padding: 8px 0;
+}
+
+.add-note-form {
+  display: none; /* toggled to block via JS */
+  margin-top: 12px;
+}
+
+.add-note-form textarea,
+#note-textarea,
+#action-note-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 .insights-header,
 .actions-header,
 .notes-header {
