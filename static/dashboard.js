@@ -2054,9 +2054,27 @@ async function openSavedAction(actionId) {
             category: 'general'
         };
         
+        // Ensure action data has the correct structure
+        const normalizedAction = {
+            action_id: action.action_id,
+            action_title: action.action_title || action.title || 'Untitled Action',
+            action_description: action.action_description || action.description || 'No description available',
+            priority_level: action.priority_level || 1,
+            estimated_effort: action.estimated_effort || null,
+            estimated_impact: action.estimated_impact || null,
+            gemini_context: action.gemini_context || null,
+            next_steps: action.next_steps || null,
+            notes: action.notes || [],
+            priority_id: action.priority_id,
+            grid_type: action.grid_type,
+            user_role: action.user_role || action.role || 'default_role',
+            created_ts: action.created_ts,
+            updated_ts: action.updated_ts
+        };
+        
         // Open the Explore Action modal
         if (window.exploreActionModal) {
-            window.exploreActionModal.open(action, priorityData, action.priority_id, action.grid_type);
+            window.exploreActionModal.open(normalizedAction, priorityData, action.priority_id, action.grid_type);
         } else {
             alert('Explore Action modal not available. Please refresh the page.');
         }
