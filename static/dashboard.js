@@ -636,6 +636,11 @@ function renderPriorityCards(priorities, gridType = 'short-term') {
         <div class="title"><span class="icon-circle">${icon}</span><span>${title}</span></div>
         <div class="chips">${chips}</div>
         <div class="body">${why}</div>
+        <div class="priority-actions">
+          <button class="btn-explore-act" data-priority-id="${i + 1}" data-grid-type="${gridType}" data-priority-data='${JSON.stringify(p).replace(/'/g, '&apos;')}'>
+            🔍 Explore & Act
+          </button>
+        </div>
       `;
       return;
     }
@@ -683,6 +688,11 @@ function renderPriorityCards(priorities, gridType = 'short-term') {
       <div class="title"><span class="icon-circle">${icon}</span><span>${title}</span></div>
       <div class="chips">${chips}</div>
       <div class="body">${why}</div>
+      <div class="priority-actions">
+        <button class="btn-explore-act" data-priority-id="${i + 1}" data-grid-type="${gridType}" data-priority-data='${JSON.stringify(p).replace(/'/g, '&apos;')}'>
+          🔍 Explore & Act
+        </button>
+      </div>
     `;
   });
 }
@@ -691,6 +701,26 @@ function clearPriorityCards() {
   renderPriorityCards([], 'short-term'); 
   renderPriorityCards([], 'long-term'); 
 }
+
+// Add event listener for Explore & Act buttons
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('btn-explore-act')) {
+    console.log('Explore & Act button clicked!');
+    const priorityId = e.target.getAttribute('data-priority-id');
+    const gridType = e.target.getAttribute('data-grid-type');
+    const priorityData = JSON.parse(e.target.getAttribute('data-priority-data').replace(/&apos;/g, "'"));
+    
+    console.log('Priority data:', { priorityId, gridType, priorityData });
+    
+    // Open the modal
+    if (window.priorityExploreModal) {
+      console.log('Opening modal...');
+      window.priorityExploreModal.open(priorityData, priorityId, gridType);
+    } else {
+      console.error('PriorityExploreModal not available!');
+    }
+  }
+});
 
 
 async function runGeminiAnalysis() {
@@ -1541,7 +1571,302 @@ if (window.__CUSTOM_ROLE_NAME__) {
   document.addEventListener('DOMContentLoaded', () => {
     // Add a small delay to ensure all elements are rendered
     setTimeout(fetchAndUpdateMetadata, 100);
+    
+    // Load saved analyses
+    setTimeout(loadSavedAnalyses, 200);
+    
+    // Add accordion functionality for saved analyses
+    const savedAnalysesToggle = document.getElementById('saved-analyses-toggle');
+    const savedAnalysesContent = document.getElementById('saved-analyses-content');
+    
+    if (savedAnalysesToggle && savedAnalysesContent) {
+      savedAnalysesToggle.addEventListener('click', () => {
+        const isExpanded = savedAnalysesContent.style.display !== 'none';
+        savedAnalysesContent.style.display = isExpanded ? 'none' : 'block';
+        savedAnalysesToggle.setAttribute('aria-expanded', !isExpanded);
+        
+        const icon = savedAnalysesToggle.querySelector('.accordion-icon');
+        if (icon) {
+          icon.textContent = '▶';
+        }
+      });
+    }
   });
+}
+
+// Saved Analyses Functionality
+async function loadSavedAnalyses() {
+    console.log('Loading saved workspaces...');
+    try {
+        const response = await fetch('/api/priority-insights/saved');
+        console.log('Response status:', response.status);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Saved workspaces data:', data);
+            renderSavedAnalyses(data.analyses);
+        } else {
+            console.error('Failed to load saved workspaces, status:', response.status);
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+        }
+    } catch (error) {
+        console.error('Error loading saved workspaces:', error);
+    }
+}
+
+// Render saved workspaces
+function renderSavedAnalyses(analyses) {
+    console.log('Rendering saved workspaces:', analyses);
+    const container = document.getElementById('saved-analyses-list');
+    
+    if (!container) {
+        console.error('Saved workspaces container not found!');
+        return;
+    }
+    
+    if (!analyses || analyses.length === 0) {
+        console.log('No saved workspaces found, showing empty state');
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>No saved workspaces yet. Use the "💾 Save Analysis" button in the Explore & Act modal to save your priority workspaces.</p>
+            </div>
+        `;
+        return;
+    }
+    
+        console.log(`Rendering ${analyses.length} saved workspaces`);
+    
+    const analysesHtml = analyses.map(analysis => {
+        const priorityData = JSON.parse(analysis.priority_data);
+        const actionsData = analysis.actions_data ? JSON.parse(analysis.actions_data) : [];
+        const notesData = analysis.notes_data ? JSON.parse(analysis.notes_data) : [];
+        
+        return `
+            <div class="saved-analysis-item">
+                <div class="saved-analysis-header">
+                    <h3 class="saved-analysis-title">${escapeHtml(analysis.priority_title)}</h3>
+                    <div class="saved-analysis-actions">
+                        <button class="saved-analysis-btn saved-analysis-btn-primary" onclick="openSavedAnalysis(${analysis.id})">
+                            🔍 View Analysis
+                        </button>
+                        <button class="saved-analysis-btn saved-analysis-btn-danger" onclick="deleteSavedAnalysis(${analysis.id})">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                </div>
+                <div class="saved-analysis-meta">
+                    <span class="saved-analysis-type">${analysis.grid_type}</span>
+                    <span class="saved-analysis-date">Saved: ${new Date(analysis.created_ts).toLocaleString()}</span>
+                </div>
+                <div class="saved-analysis-summary">
+                    ${analysis.insights_content ? '✅ Insights generated' : '❌ No insights'} • 
+                    ${actionsData.length} actions • 
+                    ${notesData.length} notes
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = analysesHtml;
+        console.log('Saved workspaces rendered successfully');
+}
+
+// Open saved workspace in modal
+async function openSavedAnalysis(analysisId) {
+    try {
+        // First, get the saved analysis data
+        const response = await fetch('/api/priority-insights/saved');
+        if (!response.ok) {
+            throw new Error('Failed to fetch saved analyses');
+        }
+        
+        const data = await response.json();
+        const analysis = data.analyses.find(a => a.id === analysisId);
+        
+        if (!analysis) {
+            alert('Analysis not found');
+            return;
+        }
+        
+        // Parse the saved data
+        const priorityData = JSON.parse(analysis.priority_data);
+        
+        // Open the Explore & Act modal with the saved data
+        if (window.priorityExploreModal) {
+            // Create a mock priority object that matches what the modal expects
+            const mockPriority = {
+                data: priorityData,
+                id: analysis.priority_id,
+                gridType: analysis.grid_type
+            };
+            
+            // Open the modal
+            window.priorityExploreModal.open(mockPriority.data, mockPriority.id, mockPriority.gridType);
+            
+            // Load the saved insights, actions, and notes into the modal
+            setTimeout(async () => {
+                try {
+                    // Load insights if they exist
+                    if (analysis.insights_content) {
+                        const insightsElement = document.getElementById('insights-content');
+                        if (insightsElement) {
+                            insightsElement.innerHTML = `
+                                <div class="insights-display">
+                                    <div class="insights-meta">
+                                        <span class="insights-date">Generated: ${new Date(analysis.created_ts).toLocaleString()}</span>
+                                        <button class="btn-delete-subtle" onclick="priorityExploreModal.deleteInsight(${analysisId})" title="Delete insight">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                    <div class="insights-text">${window.priorityExploreModal.formatInsightsText(analysis.insights_content)}</div>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    // Load actions if they exist
+                    if (analysis.actions_data) {
+                        const actionsData = JSON.parse(analysis.actions_data);
+                        const actionsElement = document.getElementById('actions-content');
+                        if (actionsElement && actionsData.length > 0) {
+                            const actionsHtml = actionsData.map(action => {
+                                // Helper functions for styling
+                                const getPriorityInfo = (level) => {
+                                    switch(level) {
+                                        case 1: case 'high': return { icon: '🔴', class: 'priority-high' };
+                                        case 2: case 'medium': return { icon: '🟡', class: 'priority-medium' };
+                                        case 3: case 'low': return { icon: '🟢', class: 'priority-low' };
+                                        default: return { icon: '⚪', class: '' };
+                                    }
+                                };
+                                
+                                const getEffortInfo = (effort) => {
+                                    switch(effort?.toLowerCase()) {
+                                        case 'high': return { icon: '⚡', class: 'effort-high' };
+                                        case 'medium': return { icon: '⚖️', class: 'effort-medium' };
+                                        case 'low': return { icon: '🐌', class: 'effort-low' };
+                                        default: return { icon: '❓', class: '' };
+                                    }
+                                };
+                                
+                                const getImpactInfo = (impact) => {
+                                    switch(impact?.toLowerCase()) {
+                                        case 'high': return { icon: '🚀', class: 'impact-high' };
+                                        case 'medium': return { icon: '📈', class: 'impact-medium' };
+                                        case 'low': return { icon: '📊', class: 'impact-low' };
+                                        default: return { icon: '❓', class: '' };
+                                    }
+                                };
+                                
+                                const priorityInfo = getPriorityInfo(action.priority_level);
+                                const effortInfo = getEffortInfo(action.estimated_effort);
+                                const impactInfo = getImpactInfo(action.estimated_impact);
+                                
+                                return `
+                                    <div class="action-item">
+                                        <div class="action-header">
+                                            <h4 class="action-title">${escapeHtml(action.action_title)}</h4>
+                                            <div class="action-meta">
+                                                <span class="action-priority ${priorityInfo.class}">
+                                                    ${priorityInfo.icon} Priority ${action.priority_level}
+                                                </span>
+                                                ${action.estimated_effort ? `
+                                                    <span class="action-effort ${effortInfo.class}">
+                                                        ${effortInfo.icon} Effort: ${action.estimated_effort}
+                                                    </span>
+                                                ` : ''}
+                                                ${action.estimated_impact ? `
+                                                    <span class="action-impact ${impactInfo.class}">
+                                                        ${impactInfo.icon} Impact: ${action.estimated_impact}
+                                                    </span>
+                                                ` : ''}
+                                                <button class="btn-delete-subtle" onclick="priorityExploreModal.deleteAction(${action.id})" title="Delete action">
+                                                    🗑️
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="action-description">${escapeHtml(action.action_description)}</div>
+                                    </div>
+                                `;
+                            }).join('');
+                            
+                            actionsElement.innerHTML = `
+                                <div class="actions-list">
+                                    ${actionsHtml}
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    // Load notes if they exist
+                    if (analysis.notes_data) {
+                        const notesData = JSON.parse(analysis.notes_data);
+                        const notesElement = document.getElementById('notes-content');
+                        if (notesElement && notesData.length > 0) {
+                            const notesHtml = notesData.map(note => `
+                                <div class="note-item">
+                                    <div class="note-content">${escapeHtml(note.note_content)}</div>
+                                    <div class="note-meta">
+                                        <span class="note-date">${new Date(note.created_ts).toLocaleString()}</span>
+                                        <button class="btn-delete-subtle" onclick="priorityExploreModal.deleteNote(${note.id})" title="Delete note">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('');
+                            
+                            notesElement.innerHTML = `
+                                <div class="notes-list">
+                                    ${notesHtml}
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error('Error loading saved analysis data:', error);
+                }
+            }, 100);
+            
+        } else {
+            alert('Explore & Act modal not available');
+        }
+        
+    } catch (error) {
+        console.error('Error opening saved analysis:', error);
+        alert('Failed to open saved analysis. Please try again.');
+    }
+}
+
+// Delete saved analysis
+async function deleteSavedAnalysis(analysisId) {
+    if (!confirm('Are you sure you want to delete this saved analysis? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/priority-insights/saved/${analysisId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            // Reload saved analyses
+            await loadSavedAnalyses();
+        } else {
+            throw new Error('Failed to delete analysis');
+        }
+    } catch (error) {
+        console.error('Error deleting saved analysis:', error);
+        alert('Failed to delete analysis. Please try again.');
+    }
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 

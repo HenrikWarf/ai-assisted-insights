@@ -1350,6 +1350,339 @@ def api_analysis_latest():
 	return jsonify({"role": role, "analysis": analysis, "created_ts": row["created_ts"]})
 
 
+# --- Priority Insights & Explore & Act API Routes ---
+
+@app.route("/api/priority-insights/summary", methods=["POST"])
+def api_priority_summary():
+	"""Get summary of all data for a priority."""
+	if "role" not in session:
+		return jsonify({"error": "Unauthorized"}), 401
+	
+	try:
+		data = request.get_json()
+		priority_id = data.get('priority_id')
+		grid_type = data.get('grid_type')
+		
+		if not priority_id or not grid_type:
+			return jsonify({"error": "Missing required fields"}), 400
+		
+		# Import and ensure tables exist
+		from app.database.priority_insights_schema import create_priority_insights_tables, get_priority_summary
+		create_priority_insights_tables()
+		
+		# Get summary data
+		summary = get_priority_summary(priority_id, session["role"])
+		
+		return jsonify({
+			"success": True,
+			"summary": summary
+		})
+		
+	except Exception as e:
+		print(f"Error getting priority summary: {e}")
+		return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/priority-insights/generate", methods=["POST"])
+def api_generate_insights():
+	"""Generate insights for a priority using Gemini with Google Search grounding."""
+	if "role" not in session:
+		return jsonify({"error": "Unauthorized"}), 401
+	
+	try:
+		data = request.get_json()
+		priority_id = data.get('priority_id')
+		grid_type = data.get('grid_type')
+		priority_data = data.get('priority_data')
+		
+		if not priority_id or not grid_type or not priority_data:
+			return jsonify({"error": "Missing required fields"}), 400
+		
+		# Import required modules
+		from app.database.priority_insights_schema import create_priority_insights_tables, save_priority_insights, get_priority_insights
+		from services.priority_insights_service import generate_priority_insights_with_search
+		
+		# Ensure tables exist
+		create_priority_insights_tables()
+		
+		# Extract priority information
+		priority_title = priority_data.get('title', 'Untitled Priority')
+		priority_description = priority_data.get('why', '')
+		priority_category = priority_data.get('category', 'general')
+		
+		# Generate insights
+		insights_result = generate_priority_insights_with_search(
+			priority_title, priority_description, priority_category, session["role"]
+		)
+		
+		# Save insights to database
+		insight_id = save_priority_insights(
+			priority_id=priority_id,
+			grid_type=grid_type,
+			priority_title=priority_title,
+			priority_data=json.dumps(priority_data),
+			insights_content=insights_result["insights_content"],
+			search_grounding_data=insights_result["search_grounding_data"],
+			user_role=session["role"]
+		)
+		
+		# Get updated insights
+		insights = get_priority_insights(priority_id, session["role"])
+		
+		return jsonify({
+			"success": True,
+			"insights": insights,
+			"insight_id": insight_id
+		})
+		
+	except Exception as e:
+		print(f"Error generating insights: {e}")
+		return jsonify({"error": "Failed to generate insights"}), 500
+
+
+@app.route("/api/priority-insights/actions", methods=["POST"])
+def api_generate_actions():
+	"""Generate action recommendations for a priority."""
+	if "role" not in session:
+		return jsonify({"error": "Unauthorized"}), 401
+	
+	try:
+		data = request.get_json()
+		priority_id = data.get('priority_id')
+		grid_type = data.get('grid_type')
+		priority_data = data.get('priority_data')
+		
+		if not priority_id or not grid_type or not priority_data:
+			return jsonify({"error": "Missing required fields"}), 400
+		
+		# Import required modules
+		from app.database.priority_insights_schema import create_priority_insights_tables, get_priority_actions, add_priority_action
+		from services.priority_insights_service import generate_action_recommendations
+		
+		# Ensure tables exist
+		create_priority_insights_tables()
+		
+		# Extract priority information
+		priority_title = priority_data.get('title', 'Untitled Priority')
+		priority_description = priority_data.get('why', '')
+		priority_category = priority_data.get('category', 'general')
+		
+		# Get existing actions to avoid duplicates
+		existing_actions = get_priority_actions(priority_id, session["role"])
+		
+		# Generate action recommendations
+		actions = generate_action_recommendations(
+			priority_title, priority_description, priority_category, 
+			session["role"], existing_actions
+		)
+		
+		# Save actions to database
+		saved_actions = []
+		for action in actions:
+			action_id = add_priority_action(
+				priority_id=priority_id,
+				user_role=session["role"],
+				action_title=action.get('title', ''),
+				action_description=action.get('description', ''),
+				action_type='recommended',
+				priority_level=action.get('priority_level', 1),
+				estimated_effort=action.get('estimated_effort'),
+				estimated_impact=action.get('estimated_impact')
+			)
+			saved_actions.append(action_id)
+		
+		# Get updated actions
+		updated_actions = get_priority_actions(priority_id, session["role"])
+		
+		return jsonify({
+			"success": True,
+			"actions": updated_actions,
+			"saved_count": len(saved_actions)
+		})
+		
+	except Exception as e:
+		print(f"Error generating actions: {e}")
+		return jsonify({"error": "Failed to generate actions"}), 500
+
+
+@app.route("/api/priority-insights/notes", methods=["POST"])
+def api_add_note():
+	"""Add a note to a priority."""
+	if "role" not in session:
+		return jsonify({"error": "Unauthorized"}), 401
+	
+	try:
+		data = request.get_json()
+		priority_id = data.get('priority_id')
+		grid_type = data.get('grid_type')
+		note_content = data.get('note_content')
+		
+		if not priority_id or not grid_type or not note_content:
+			return jsonify({"error": "Missing required fields"}), 400
+		
+		# Import required modules
+		from app.database.priority_insights_schema import create_priority_insights_tables, add_priority_note, get_priority_notes
+		
+		# Ensure tables exist
+		create_priority_insights_tables()
+		
+		# Add note
+		note_id = add_priority_note(priority_id, session["role"], note_content)
+		
+		# Get updated notes
+		notes = get_priority_notes(priority_id, session["role"])
+		
+		return jsonify({
+			"success": True,
+			"note_id": note_id,
+			"notes": notes
+		})
+		
+	except Exception as e:
+		print(f"Error adding note: {e}")
+		return jsonify({"error": "Failed to add note"}), 500
+
+
+@app.route("/api/priority-insights/notes/<int:note_id>", methods=["DELETE"])
+def api_delete_note(note_id):
+	"""Delete a specific note."""
+	if "role" not in session:
+		return jsonify({"error": "Unauthorized"}), 401
+	
+	try:
+		# Import required modules
+		from app.database.priority_insights_schema import create_priority_insights_tables, delete_priority_note, get_priority_notes
+		
+		# Ensure tables exist
+		create_priority_insights_tables()
+		
+		# Delete note
+		success = delete_priority_note(note_id, session["role"])
+		
+		if success:
+			return jsonify({"success": True, "message": "Note deleted successfully"})
+		else:
+			return jsonify({"error": "Note not found or could not be deleted"}), 404
+		
+	except Exception as e:
+		print(f"Error deleting note: {e}")
+		return jsonify({"error": "Failed to delete note"}), 500
+
+
+@app.route("/api/priority-insights/insights/<int:insight_id>", methods=["DELETE"])
+def api_delete_insight(insight_id):
+	"""Delete a specific insight."""
+	if "role" not in session:
+		return jsonify({"error": "Unauthorized"}), 401
+	
+	try:
+		# Import required modules
+		from app.database.priority_insights_schema import create_priority_insights_tables, delete_priority_insight
+		
+		# Ensure tables exist
+		create_priority_insights_tables()
+		
+		# Delete insight
+		success = delete_priority_insight(insight_id, session["role"])
+		
+		if success:
+			return jsonify({"success": True, "message": "Insight deleted successfully"})
+		else:
+			return jsonify({"error": "Insight not found or could not be deleted"}), 404
+		
+	except Exception as e:
+		print(f"Error deleting insight: {e}")
+		return jsonify({"error": "Failed to delete insight"}), 500
+
+
+@app.route("/api/priority-insights/actions/<int:action_id>", methods=["DELETE"])
+def api_delete_action(action_id):
+    """Delete a specific action."""
+    if "role" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        # Import required modules
+        from app.database.priority_insights_schema import create_priority_insights_tables, delete_priority_action
+        
+        # Ensure tables exist
+        create_priority_insights_tables()
+        
+        # Delete action
+        success = delete_priority_action(action_id, session["role"])
+        
+        if success:
+            return jsonify({"success": True, "message": "Action deleted successfully"})
+        else:
+            return jsonify({"error": "Action not found or could not be deleted"}), 404
+        
+    except Exception as e:
+        print(f"Error deleting action: {e}")
+        return jsonify({"error": "Failed to delete action"}), 500
+
+
+
+@app.route("/api/priority-insights/clear", methods=["POST"])
+def api_clear_priority_data():
+	"""Clear all data for a priority."""
+	if "role" not in session:
+		return jsonify({"error": "Unauthorized"}), 401
+	
+	try:
+		data = request.get_json()
+		priority_id = data.get('priority_id')
+		grid_type = data.get('grid_type')
+		
+		if not priority_id or not grid_type:
+			return jsonify({"error": "Missing required fields"}), 400
+		
+		# Import required modules
+		from app.database.priority_insights_schema import create_priority_insights_tables, delete_priority_data
+		
+		# Ensure tables exist
+		create_priority_insights_tables()
+		
+		# Clear data
+		delete_priority_data(priority_id, session["role"])
+		
+		return jsonify({
+			"success": True,
+			"message": "Priority data cleared successfully"
+		})
+		
+	except Exception as e:
+		print(f"Error clearing priority data: {e}")
+		return jsonify({"error": "Failed to clear data"}), 500
+
+
+@app.route("/api/priority-insights/status", methods=["GET"])
+def api_priority_insights_status():
+	"""Get status of the Priority Insights feature."""
+	try:
+		# Import and check if tables exist and are accessible
+		from app.database.priority_insights_schema import create_priority_insights_tables
+		create_priority_insights_tables()
+		
+		return jsonify({
+			"success": True,
+			"status": "active",
+			"features": {
+				"insights_generation": True,
+				"action_recommendations": True,
+				"notes_management": True,
+				"data_persistence": True
+			}
+		})
+		
+	except Exception as e:
+		print(f"Error checking priority insights status: {e}")
+		return jsonify({
+			"success": False,
+			"status": "error",
+			"error": str(e)
+		}), 500
+
+
 @app.route("/api/action", methods=["POST"]) 
 def record_action():
 	if "role" not in session:

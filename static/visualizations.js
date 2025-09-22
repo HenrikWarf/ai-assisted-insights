@@ -1474,8 +1474,8 @@ class MetricsVisualizer {
       if (topicId) {
         const link = document.createElement('a');
         link.href = `#${topicId}`;
-        link.textContent = title;
-        link.className = 'section-link';
+        link.className = 'link-btn';
+        link.innerHTML = `<span class="icon">🔗</span>${title}`;
         sectionLinksContainer.appendChild(link);
       }
     });

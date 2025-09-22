@@ -93,6 +93,31 @@
         </div>
         </div>
       </section>
+      
+      <!-- Saved Analyses Section -->
+      <section class="panel" id="saved-analyses-panel">
+        <div class="panel-header">
+          <h2>
+            <button class="accordion-toggle" id="saved-analyses-toggle" aria-expanded="false" aria-controls="saved-analyses-content">
+              <span class="accordion-icon">▶</span>
+              📚 Workspace
+            </button>
+          </h2>
+        </div>
+        <div class="panel-content" id="saved-analyses-content" style="display: none;">
+          <div class="saved-analyses-container">
+            <div class="saved-analyses-header">
+              <p>Your saved priority workspaces for future reference and further analysis.</p>
+            </div>
+            <div id="saved-analyses-list" class="saved-analyses-list">
+              <div class="empty-state">
+                <p>No saved workspaces yet. Use the "💾 Save Analysis" button in the Explore & Act modal to save your priority workspaces.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
       <!-- legacy analysis panel removed; progress now shown inline above cards -->
       <section class="panel">
         <h2>Key Performance Indicators</h2>
@@ -164,6 +189,7 @@
     
     <script src="/static/modal.js"></script>
     <script src="/static/visualizations.js"></script>
+    <script src="/static/js/components/priority-explore-modal.js"></script>
     <script>
       // If path is /dashboard/<role_name>, mark session role as custom in client for UI hints
       (function(){

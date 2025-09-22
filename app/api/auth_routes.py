@@ -6,7 +6,11 @@ This module contains Flask Blueprint for authentication-related API endpoints.
 
 from flask import Blueprint, request, jsonify, session, redirect, send_from_directory
 from app.auth import login_user, logout_user
-from app.database import STATIC_DIR
+from pathlib import Path
+
+# Define STATIC_DIR here since it's not available in app.database
+APP_ROOT = Path(__file__).parent.parent.parent.resolve()
+STATIC_DIR = APP_ROOT / "static"
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -34,6 +38,8 @@ def register_page():
 @auth_bp.route("/dashboard/<role_name>")
 def custom_dashboard_page(role_name):
     """Serve a generic dashboard for custom roles."""
+    # Set the session role for custom roles
+    session["role"] = role_name
     return send_from_directory(str(STATIC_DIR), "dashboard.html")
 
 
