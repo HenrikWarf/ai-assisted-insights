@@ -236,7 +236,7 @@ class ExploreActionModal {
                     ${escapeHtml(action.action_description || 'No description available')}
                 </div>
                 <div class="priority-context-modal">
-                    <h4>Related Priority:</h4>
+                    <h4>Related Action:</h4>
                     <div class="priority-card-modal">
                         <div class="priority-header-modal">
                             <span class="priority-number-modal">${this.currentAction.priorityId}</span>
