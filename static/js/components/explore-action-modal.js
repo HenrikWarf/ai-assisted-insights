@@ -290,22 +290,39 @@ class ExploreActionModal {
     }
 
     switchTab(tabName) {
-        console.log('Switching to tab:', tabName);
+        console.log('=== switchTab called with:', tabName, '===');
         
         // Update tab buttons
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        console.log('Updating tab buttons...');
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            console.log('Removing active from button:', btn.id || btn.textContent, 'classes:', btn.className);
+            btn.classList.remove('active');
+        });
+        const tabButton = document.querySelector(`[data-tab="${tabName}"]`);
+        console.log('Found tab button:', tabButton);
+        if (tabButton) {
+            tabButton.classList.add('active');
+            console.log('Added active to button. Button classes:', tabButton.className);
+        } else {
+            console.error('Tab button not found for:', tabName);
+        }
 
         // Update tab panels
+        console.log('Updating tab panels...');
         document.querySelectorAll('.tab-panel').forEach(panel => {
             console.log('Removing active from panel:', panel.id, 'classes:', panel.className);
             panel.classList.remove('active');
         });
         const targetPanel = document.getElementById(`tab-${tabName}`);
-        console.log('Target panel:', targetPanel);
+        console.log('Target panel found:', targetPanel);
         if (targetPanel) {
+            console.log('Adding active class to panel:', targetPanel.id);
             targetPanel.classList.add('active');
-            console.log('Added active class to panel. Panel classes:', targetPanel.className);
+            console.log('Panel classes after adding active:', targetPanel.className);
+            
+            // Verify the class was actually added
+            const hasActive = targetPanel.classList.contains('active');
+            console.log('Panel has active class:', hasActive);
             
             // Debug: Log all buttons in the active tab
             if (tabName === 'notes') {
@@ -327,6 +344,7 @@ class ExploreActionModal {
         } else {
             console.error('Target panel not found for tab:', tabName);
         }
+        console.log('=== switchTab completed ===');
     }
 
     async loadActionData() {
