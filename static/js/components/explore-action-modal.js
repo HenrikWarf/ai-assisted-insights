@@ -134,10 +134,14 @@ class ExploreActionModal {
         // Generate next steps
         document.getElementById('generate-next-steps-btn').addEventListener('click', () => this.generateNextSteps());
 
-        // Notes functionality
-        document.getElementById('add-action-note-btn').addEventListener('click', () => this.showAddNoteForm());
-        document.getElementById('save-action-note-btn').addEventListener('click', () => this.saveNote());
-        document.getElementById('cancel-action-note-btn').addEventListener('click', () => this.hideAddNoteForm());
+        // Notes functionality (support legacy IDs as fallback)
+        const getEl = (...ids) => ids.map(id => document.getElementById(id)).find(Boolean);
+        const addBtn = getEl('add-action-note-btn', 'add-note-btn');
+        const saveBtn = getEl('save-action-note-btn', 'save-note-btn');
+        const cancelBtn = getEl('cancel-action-note-btn', 'cancel-note-btn');
+        if (addBtn) addBtn.addEventListener('click', () => this.showAddNoteForm());
+        if (saveBtn) saveBtn.addEventListener('click', () => this.saveNote());
+        if (cancelBtn) cancelBtn.addEventListener('click', () => this.hideAddNoteForm());
 
         // Save to workspace
         document.getElementById('save-action-btn').addEventListener('click', () => this.saveToWorkspace());
@@ -438,17 +442,22 @@ class ExploreActionModal {
     }
 
     showAddNoteForm() {
-        document.getElementById('add-action-note-form').style.display = 'block';
-        document.getElementById('action-note-textarea').focus();
+        const form = document.getElementById('add-action-note-form') || document.getElementById('add-note-form');
+        const textarea = document.getElementById('action-note-textarea') || document.getElementById('note-textarea');
+        if (form) form.style.display = 'block';
+        if (textarea) textarea.focus();
     }
 
     hideAddNoteForm() {
-        document.getElementById('add-action-note-form').style.display = 'none';
-        document.getElementById('action-note-textarea').value = '';
+        const form = document.getElementById('add-action-note-form') || document.getElementById('add-note-form');
+        const textarea = document.getElementById('action-note-textarea') || document.getElementById('note-textarea');
+        if (form) form.style.display = 'none';
+        if (textarea) textarea.value = '';
     }
 
     async saveNote() {
-        const noteContent = document.getElementById('action-note-textarea').value.trim();
+        const textarea = document.getElementById('action-note-textarea') || document.getElementById('note-textarea');
+        const noteContent = (textarea ? textarea.value : '').trim();
         if (!noteContent) return;
 
         if (!this.currentAction.data.action_id) {
@@ -468,7 +477,7 @@ class ExploreActionModal {
             if (response.ok) {
                 const data = await response.json();
                 // Clear the textarea
-                document.getElementById('action-note-textarea').value = '';
+                if (textarea) textarea.value = '';
                 this.hideAddNoteForm();
                 // Reload notes to show new note
                 this.updateNotesContent(data.notes);
