@@ -6,7 +6,7 @@ notes, and action recommendations.
 """
 
 from flask import Blueprint, request, jsonify, session
-from app.database.connection import get_db_connection
+from app.database.connection import get_db_connection, get_role_db_connection
 from app.database.priority_insights_schema import (
     create_priority_insights_tables,
     get_priority_insights,
@@ -192,7 +192,7 @@ def api_get_saved_priorities():
     try:
         user_role = _get_user_role()
         create_priority_insights_tables()
-        conn = get_db_connection()
+        conn = get_role_db_connection(user_role)
         cursor = conn.cursor()
         cursor.execute(
             """

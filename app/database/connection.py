@@ -27,3 +27,17 @@ def get_db_connection():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def get_role_db_connection(user_role: str):
+    """
+    Get a database connection to the role-specific SQLite database.
+    If the role DB does not exist, it will be created.
+    """
+    safe_role = (user_role or "Customer Analyst").replace(" ", "_")
+    role_dir = APP_ROOT / "custom_roles"
+    role_dir.mkdir(parents=True, exist_ok=True)
+    role_db_path = role_dir / f"{safe_role}.db"
+    conn = sqlite3.connect(str(role_db_path))
+    conn.row_factory = sqlite3.Row
+    return conn
