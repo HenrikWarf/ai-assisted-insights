@@ -1624,7 +1624,7 @@ async function loadSavedAnalyses() {
         if (response.ok) {
             const data = await response.json();
             console.log('Saved workspaces data:', data);
-            renderSavedAnalyses(data.analyses);
+            renderSavedAnalyses(data.saved || data.analyses || []);
         } else {
             console.error('Failed to load saved workspaces, status:', response.status);
             const errorText = await response.text();
@@ -1702,7 +1702,8 @@ async function openSavedAnalysis(analysisId) {
         }
         
         const data = await response.json();
-        const analysis = data.analyses.find(a => a.id === analysisId);
+        const list = data.saved || data.analyses || [];
+        const analysis = list.find(a => a.id === analysisId);
         
         if (!analysis) {
             alert('Analysis not found');
