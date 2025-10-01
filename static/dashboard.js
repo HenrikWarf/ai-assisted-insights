@@ -449,6 +449,10 @@ async function fetchMetrics() {
                 shortSummaryEl.style.display = '';
               }
             }
+            // Expose structured context for modals if provided by API
+            if (a.context_json) {
+              window.__LATEST_CONTEXT_JSON__ = a.context_json;
+            }
         }
       }
     } catch(_) {}
@@ -1593,7 +1597,7 @@ if (window.__CUSTOM_ROLE_NAME__) {
     }
     
     // Load saved actions
-    setTimeout(loadWorkspaceActions, 300);
+    setTimeout(loadSavedActions, 300);
     
     // Add accordion functionality for saved actions
     const savedActionsToggle = document.getElementById('saved-actions-toggle');
@@ -1843,7 +1847,23 @@ async function openSavedAnalysis(analysisId) {
                                     } else if (window.exploreActionModal) {
                                         window.exploreActionModal.open(normalized, priorityData, analysis.priority_id, analysis.grid_type);
                                     } else {
-                                        alert('Explore Action feature is not available. Please refresh the page.');
+                                        console.error('ExploreActionModal not available. Available globals:', Object.keys(window).filter(k => k.includes('Modal')));
+                                        // Try to initialize it manually
+                                        if (window.ExploreActionModal) {
+                                            console.log('Attempting to initialize ExploreActionModal manually...');
+                                            try {
+                                                window.exploreActionModal = new window.ExploreActionModal();
+                                                console.log('Manual initialization successful, opening modal...');
+                                                window.exploreActionModal.open(normalized, priorityData, analysis.priority_id, analysis.grid_type);
+                                            } catch (error) {
+                                                console.error('Failed to initialize ExploreActionModal manually:', error);
+                                                console.error('Error details:', error.message, error.stack);
+                                                alert('Explore Action feature is not available. Please refresh the page.');
+                                            }
+                                        } else {
+                                            console.error('ExploreActionModal class not found on window object');
+                                            alert('Explore Action feature is not available. Please refresh the page.');
+                                        }
                                     }
                                 });
                             });
@@ -1914,16 +1934,16 @@ async function deleteSavedAnalysis(analysisId) {
 }
 
 // Saved Actions Functionality
-async function loadWorkspaceActions() {
+async function loadSavedActions() {
     console.log('Loading saved actions...');
     try {
-        const response = await fetch('/api/actions/workspace');
+        const response = await fetch('/api/actions/saved');
         console.log('Response status:', response.status);
         
         if (response.ok) {
             const data = await response.json();
             console.log('Saved actions data:', data);
-            renderSavedActions(data.actions);
+            renderSavedActions(data.actions_by_priority);
         } else {
             console.error('Failed to load saved actions, status:', response.status);
             const errorText = await response.text();
@@ -1935,8 +1955,8 @@ async function loadWorkspaceActions() {
 }
 
 // Render saved actions
-function renderSavedActions(actions) {
-    console.log('Rendering saved actions:', actions);
+function renderSavedActions(actionsByPriority) {
+    console.log('Rendering saved actions:', actionsByPriority);
     const container = document.getElementById('saved-actions-list');
     
     if (!container) {
@@ -1944,7 +1964,7 @@ function renderSavedActions(actions) {
         return;
     }
     
-    if (!actions || actions.length === 0) {
+    if (!actionsByPriority || Object.keys(actionsByPriority).length === 0) {
         console.log('No saved actions found, showing empty state');
         container.innerHTML = `
             <div class="empty-state">
@@ -1954,82 +1974,57 @@ function renderSavedActions(actions) {
         return;
     }
     
-    console.log(`Rendering ${actions.length} saved actions`);
-    
-    const actionsHtml = actions.map(action => {
-        // Helper function to get icon and class for priority
-        const getPriorityInfo = (level) => {
-            switch(level) {
-                case 1: case 'high': return { icon: '🔴', class: 'priority-high' };
-                case 2: case 'medium': return { icon: '🟡', class: 'priority-medium' };
-                case 3: case 'low': return { icon: '🟢', class: 'priority-low' };
-                default: return { icon: '⚪', class: '' };
-            }
-        };
-        
-        // Helper function to get icon and class for effort
-        const getEffortInfo = (effort) => {
-            switch(effort?.toLowerCase()) {
-                case 'high': return { icon: '⚡', class: 'effort-high' };
-                case 'medium': return { icon: '⚖️', class: 'effort-medium' };
-                case 'low': return { icon: '🐌', class: 'effort-low' };
-                default: return { icon: '❓', class: '' };
-            }
-        };
-        
-        // Helper function to get icon and class for impact
-        const getImpactInfo = (impact) => {
-            switch(impact?.toLowerCase()) {
-                case 'high': return { icon: '🚀', class: 'impact-high' };
-                case 'medium': return { icon: '📈', class: 'impact-medium' };
-                case 'low': return { icon: '📊', class: 'impact-low' };
-                default: return { icon: '❓', class: '' };
-            }
-        };
-        
-        const priorityInfo = getPriorityInfo(action.priority_level);
-        const effortInfo = getEffortInfo(action.estimated_effort);
-        const impactInfo = getImpactInfo(action.estimated_impact);
-        
-        return `
-            <div class="saved-action-item">
-                <div class="saved-action-header">
-                    <h4 class="saved-action-title">${escapeHtml(action.action_title)}</h4>
-                    <div class="saved-action-meta">
-                        <span class="action-priority ${priorityInfo.class}">
-                            ${priorityInfo.icon} Priority ${action.priority_level}
-                        </span>
-                        ${action.estimated_effort ? `
-                            <span class="action-effort ${effortInfo.class}">
-                                ${effortInfo.icon} Effort: ${action.estimated_effort}
-                            </span>
-                        ` : ''}
-                        ${action.estimated_impact ? `
-                            <span class="action-impact ${impactInfo.class}">
-                                ${impactInfo.icon} Impact: ${action.estimated_impact}
-                            </span>
-                        ` : ''}
-                    </div>
+    const priorities = Object.keys(actionsByPriority);
+
+    container.innerHTML = priorities.map(priorityTitle => `
+    <div class="saved-action-group">
+      <h3 class="priority-group-title">${escapeHtml(priorityTitle)}</h3>
+      <div class="saved-action-list">
+        ${actionsByPriority[priorityTitle].map(action => `
+          <div class="saved-action-list-item" onclick="openSavedAction('${action.action_id}')">
+            <div class="action-list-item-main">
+              <span class="action-list-item-icon">${getActionIcon(action)}</span>
+              <div>
+                <span class="action-list-item-title">${escapeHtml(action.action_title)}</span>
+                <p class="action-list-item-summary">${escapeHtml(action.action_description || '')}</p>
+                <div class="action-list-item-meta">
+                  ${action.priority_level ? `<span class="action-meta-tag priority-${String(action.priority_level).toLowerCase()}">Priority: ${escapeHtml(action.priority_level)}</span>` : ''}
+                  ${action.estimated_impact ? `<span class="action-meta-tag impact-${action.estimated_impact.toLowerCase()}">Impact: ${escapeHtml(action.estimated_impact)}</span>` : ''}
+                  ${action.estimated_effort ? `<span class="action-meta-tag effort-${action.estimated_effort.toLowerCase()}">Effort: ${escapeHtml(action.estimated_effort)}</span>` : ''}
                 </div>
-                <div class="saved-action-description">${escapeHtml(action.action_description)}</div>
-                <div class="saved-action-actions">
-                    <button class="saved-action-btn saved-action-btn-primary" onclick="openSavedAction('${action.action_id}')">
-                        🔍 View Action
-                    </button>
-                    <button class="saved-action-btn saved-action-btn-danger" onclick="deleteSavedAction('${action.action_id}')">
-                        🗑️ Delete
-                    </button>
-                </div>
-                <div class="saved-action-footer">
-                    <span class="saved-action-type">${action.grid_type}</span>
-                    <span class="saved-action-date">Saved: ${new Date(action.workspace_saved_ts).toLocaleString()}</span>
-                </div>
+              </div>
             </div>
-        `;
-    }).join('');
-    
-    container.innerHTML = actionsHtml;
+            <div class="action-list-item-actions">
+              <span class="action-list-item-status status-${action.status}">${escapeHtml(action.status)}</span>
+              <button class="btn-icon btn-view-saved-action" title="View Details">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    `).join('');
+
     console.log('Saved actions rendered successfully');
+}
+
+function getActionIcon(action) {
+    if (!action || !action.action_title) return '⚪';
+
+    const title = action.action_title.toLowerCase();
+    
+    if (title.includes('campaign') || title.includes('marketing') || title.includes('ad')) return '📣';
+    if (title.includes('performance') || title.includes('speed') || title.includes('lcp')) return '⚡';
+    if (title.includes('checkout') || title.includes('payment')) return '💳';
+    if (title.includes('search') || title.includes('query')) return '🔎';
+    if (title.includes('return') || title.includes('rma')) return '↩️';
+    if (title.includes('product') || title.includes('sku') || title.includes('inventory')) return '🛒';
+    if (title.includes('user') || title.includes('customer')) return '👥';
+    if (title.includes('retention') || title.includes('loyalty')) return '🔄';
+    if (title.includes('report') || title.includes('dashboard')) return '📊';
+    
+    return '📝'; // Default icon
 }
 
 // Open saved action in modal
@@ -2048,12 +2043,34 @@ async function openSavedAction(actionId) {
             return;
         }
         
-        // Create mock priority data for the modal
-        const priorityData = {
+        // Resolve real priority data for the modal (title/why/category)
+        let priorityData = {
             title: `Priority ${action.priority_id}`,
-            why: 'Saved action from priority analysis',
-            category: 'general'
+            why: '',
+            category: action.grid_type || 'general'
         };
+        try {
+            const savedRes = await fetch('/api/priority-insights/saved');
+            if (savedRes.ok) {
+                const savedJson = await savedRes.json();
+                const list = Array.isArray(savedJson.analyses) ? savedJson.analyses
+                           : (Array.isArray(savedJson.saved) ? savedJson.saved : []);
+                const match = list.find(a => a.priority_id === action.priority_id && a.grid_type === action.grid_type);
+                if (match) {
+                    // Prefer stored title and full priority_data if available
+                    const parsedPriorityData = (() => {
+                        try { return match.priority_data ? JSON.parse(match.priority_data) : null; } catch { return null; }
+                    })();
+                    priorityData = {
+                        title: (parsedPriorityData && parsedPriorityData.title) || match.priority_title || priorityData.title,
+                        why: (parsedPriorityData && parsedPriorityData.why) || priorityData.why,
+                        category: (parsedPriorityData && parsedPriorityData.category) || priorityData.category
+                    };
+                }
+            }
+        } catch (e) {
+            console.warn('Could not load saved priority data for action:', e);
+        }
         
         // Ensure action data has the correct structure
         const normalizedAction = {
@@ -2065,19 +2082,40 @@ async function openSavedAction(actionId) {
             estimated_impact: action.estimated_impact || null,
             gemini_context: action.gemini_context || null,
             next_steps: action.next_steps || null,
+            // Persisted structured payloads (if present)
+            action_json: (() => { try { return action.action_json ? (typeof action.action_json === 'string' ? JSON.parse(action.action_json) : action.action_json) : null; } catch(_) { return null; } })(),
+            context_json: (() => { try { return action.context_json ? (typeof action.context_json === 'string' ? JSON.parse(action.context_json) : action.context_json) : null; } catch(_) { return null; } })(),
+            next_steps_json: (() => { try { return action.next_steps_json ? (typeof action.next_steps_json === 'string' ? JSON.parse(action.next_steps_json) : action.next_steps_json) : null; } catch(_) { return null; } })(),
             notes: action.notes || [],
             priority_id: action.priority_id,
             grid_type: action.grid_type,
             user_role: action.user_role || action.role || 'default_role',
             created_ts: action.created_ts,
-            updated_ts: action.updated_ts
+            updated_ts: action.updated_ts,
+            source_table: action.source_table // Add this line
         };
         
         // Open the Explore Action modal
         if (window.exploreActionModal) {
             window.exploreActionModal.open(normalizedAction, priorityData, action.priority_id, action.grid_type);
         } else {
-            alert('Explore Action modal not available. Please refresh the page.');
+            console.error('ExploreActionModal not available. Available globals:', Object.keys(window).filter(k => k.includes('Modal')));
+            // Try to initialize it manually
+            if (window.ExploreActionModal) {
+                console.log('Attempting to initialize ExploreActionModal manually...');
+                try {
+                    window.exploreActionModal = new window.ExploreActionModal();
+                    console.log('Manual initialization successful, opening modal...');
+                    window.exploreActionModal.open(normalizedAction, priorityData, action.priority_id, action.grid_type);
+                } catch (error) {
+                    console.error('Failed to initialize ExploreActionModal manually:', error);
+                    console.error('Error details:', error.message, error.stack);
+                    alert('Explore Action modal not available. Please refresh the page.');
+                }
+            } else {
+                console.error('ExploreActionModal class not found on window object');
+                alert('Explore Action modal not available. Please refresh the page.');
+            }
         }
     } catch (error) {
         console.error('Error opening saved action:', error);
@@ -2092,12 +2130,12 @@ async function deleteSavedAction(actionId) {
     }
     
     try {
-        const response = await fetch(`/api/actions/${actionId}`, {
+        const response = await fetch(`/api/actions/saved/${actionId}`, {
             method: 'DELETE'
         });
         
         if (response.ok) {
-            await loadWorkspaceActions();
+            await loadSavedActions();
         } else {
             throw new Error('Failed to delete action');
         }
@@ -2113,5 +2151,6 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
 
 

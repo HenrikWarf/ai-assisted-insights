@@ -8,6 +8,13 @@
     <link rel="stylesheet" href="/static/styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Prism.js for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+
   </head>
   <body>
     <div class="navbar">
@@ -130,11 +137,38 @@
     </div>
     
     <!-- Load modular JavaScript files -->
-    <script src="/static/js/utils/formatters.js"></script>
-    <script src="/static/js/utils/ui.js"></script>
-    <script src="/static/js/components/kpi.js"></script>
-    <script src="/static/js/components/metrics.js"></script>
-    <script src="/static/js/components/modals.js"></script>
+    <script src="/static/js/utils/formatters.js?v=2"></script>
+    <script src="/static/js/utils/ui.js?v=2"></script>
+    <script src="/static/js/components/kpi.js?v=2"></script>
+    <script src="/static/js/components/metrics.js?v=2"></script>
+    <script src="/static/js/components/modals.js?v=2"></script>
+    <script src="/static/js/components/query-generator.js?v=2"></script>
+    <script src="/static/js/components/communication-generator.js?v=2" 
+            onload="console.log('✅ communication-generator.js loaded successfully')"
+            onerror="console.error('❌ Failed to load communication-generator.js')"></script>
+    <script>
+        // CACHE BUSTER - Debug script loading v2
+        console.log('🔄 CACHE BUSTER v2 - Checking if CommunicationGenerator is loaded:', typeof CommunicationGenerator !== 'undefined');
+        console.log('🔄 Available functions:', typeof initializeModalListeners !== 'undefined' ? 'initializeModalListeners OK' : 'initializeModalListeners MISSING');
+        
+        if (typeof CommunicationGenerator === 'undefined') {
+            console.error('❌ CommunicationGenerator failed to load from /static/js/components/communication-generator.js');
+            console.log('Available globals:', Object.keys(window).filter(k => k.includes('Generator')));
+            
+            // TEMPORARY FIX: Define CommunicationGenerator inline
+            console.log('🔧 Creating temporary inline CommunicationGenerator...');
+            window.CommunicationGenerator = class CommunicationGenerator {
+                constructor(container, actionId, step) {
+                    console.log('🔧 CommunicationGenerator instantiated with:', { actionId, taskId: step.id });
+                    container.innerHTML = '<p style="color: blue; font-weight: bold;">📞 Communication Generator loaded inline (temporary fix) v2</p>';
+                }
+            };
+            console.log('✅ Temporary CommunicationGenerator created v2');
+        } else {
+            console.log('✅ CommunicationGenerator class is available from external file');
+        }
+    </script>
+    <script src="/static/js/components/action-plan.js?v=2"></script>
     <script src="/static/js/services/visualizer.js"></script>
     <script src="/static/js/dashboard-app.js"></script>
     

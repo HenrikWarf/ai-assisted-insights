@@ -213,8 +213,43 @@
     
     <script src="/static/modal.js"></script>
     <script src="/static/visualizations.js"></script>
+    <script src="/static/js/components/kpi.js"></script>
+    <script src="/static/js/components/metrics.js"></script>
     <script src="/static/js/components/priority-explore-modal.js"></script>
     <script src="/static/js/components/explore-action-modal.js"></script>
+    <script src="/static/js/components/query-generator.js"></script>
+    <script src="/static/js/components/communication-generator.js?v=4" 
+            onload="console.log('✅ communication-generator.js loaded successfully')"
+            onerror="console.error('❌ Failed to load communication-generator.js')"></script>
+    <script src="/static/js/components/ai-assistant.js?v=4" 
+            onload="console.log('✅ ai-assistant.js loaded successfully')"
+            onerror="console.error('❌ Failed to load ai-assistant.js')"></script>
+    <script>
+        // CACHE BUSTER - Debug script loading v5 (CORRECT FILE)
+        console.log('🔄 CORRECT FILE v5 - Checking if CommunicationGenerator is loaded:', typeof CommunicationGenerator !== 'undefined');
+        console.log('🔄 Checking if AIAssistant is loaded:', typeof AIAssistant !== 'undefined');
+        console.log('🔄 Available functions:', typeof initializeModalListeners !== 'undefined' ? 'initializeModalListeners OK' : 'initializeModalListeners MISSING');
+        
+        if (typeof CommunicationGenerator === 'undefined') {
+            console.error('❌ CommunicationGenerator failed to load from /static/js/components/communication-generator.js');
+            console.log('Available globals:', Object.keys(window).filter(k => k.includes('Generator')));
+            
+            // TEMPORARY FIX: Define CommunicationGenerator inline
+            console.log('🔧 Creating temporary inline CommunicationGenerator...');
+            window.CommunicationGenerator = class CommunicationGenerator {
+                constructor(container, actionId, step) {
+                    console.log('🔧 CommunicationGenerator instantiated with:', { actionId, taskId: step.id });
+                    container.innerHTML = '<p style="color: blue; font-weight: bold;">📞 Communication Generator loaded inline (CORRECT FILE v3)</p>';
+                }
+            };
+            console.log('✅ Temporary CommunicationGenerator created v3');
+        } else {
+            console.log('✅ CommunicationGenerator class is available from external file');
+        }
+    </script>
+    <script src="/static/js/components/action-plan.js"></script>
+    <script src="/static/js/services/visualizer.js"></script>
+    <script src="/static/js/dashboard-app.js"></script>
     <script>
       // If path is /dashboard/<role_name>, mark session role as custom in client for UI hints
       (function(){

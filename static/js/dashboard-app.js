@@ -113,6 +113,9 @@ async function loadDashboardData() {
     
     if (isCustomRole) {
       await loadCustomRoleMetrics();
+      // Load saved analyses and actions for custom roles
+      await loadSavedAnalyses();
+      await loadSavedActions();
     } else {
       await loadBuiltInRoleMetrics();
     }
@@ -120,6 +123,114 @@ async function loadDashboardData() {
     console.error('Error loading dashboard data:', error);
     showNotification('Failed to load dashboard data', 'error');
   }
+}
+
+/**
+ * Loads and renders saved analyses for the current custom role.
+ */
+async function loadSavedAnalyses() {
+  try {
+    const roleName = window.__CUSTOM_ROLE_NAME__;
+    if (!roleName) return;
+
+    const response = await fetch('/api/priority-insights/saved');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const result = await response.json();
+    if (result.success && result.analyses) {
+      renderSavedAnalyses(result.analyses);
+    }
+  } catch (error) {
+    console.error('Error loading saved analyses:', error);
+    showNotification('Failed to load saved analyses', 'error');
+  }
+}
+
+/**
+ * Loads and renders saved actions for the current custom role.
+ */
+async function loadSavedActions() {
+  try {
+    const roleName = window.__CUSTOM_ROLE_NAME__;
+    if (!roleName) return;
+
+    const response = await fetch('/api/actions/saved');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const result = await response.json();
+    if (result.success && result.actions_by_priority) {
+      renderSavedActions(result.actions_by_priority);
+    }
+  } catch (error) {
+    console.error('Error loading saved actions:', error);
+    showNotification('Failed to load saved actions', 'error');
+  }
+}
+
+/**
+ * Renders the list of saved analyses into the DOM.
+ * @param {Array} analyses - The array of saved analysis objects.
+ */
+function renderSavedAnalyses(analyses) {
+  const container = document.getElementById('saved-analyses-list');
+  if (!container) return;
+
+  if (analyses.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+        <p>No saved workspaces yet. Use the "💾 Save Analysis" button in the Explore & Act modal to save your priority workspaces.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = analyses.map(analysis => `
+    <div class="saved-analysis-item" data-analysis-id="${analysis.id}">
+      <h4 class="font-bold">${escapeHtml(analysis.priority_title)}</h4>
+      <p class="text-sm text-gray-600">Saved on ${new Date(analysis.created_ts).toLocaleDateString()}</p>
+      <button class="btn-secondary btn-sm mt-2 btn-view-saved-analysis">View</button>
+    </div>
+  `).join('');
+}
+
+/**
+ * Renders the list of saved actions into the DOM, grouped by priority.
+ * @param {Object} actionsByPriority - An object where keys are priority titles
+ *                                     and values are arrays of action objects.
+ */
+function renderSavedActions(actionsByPriority) {
+  const container = document.getElementById('saved-actions-list');
+  if (!container) return;
+
+  const priorities = Object.keys(actionsByPriority);
+
+  if (priorities.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+        <p>No saved actions yet. Use the "🔍 Explore Action" button in priority insights, then "💾 Save to Workspace" to save your action plans.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = priorities.map(priorityTitle => `
+    <div class="saved-action-group">
+      <h3 class="priority-group-title">${escapeHtml(priorityTitle)}</h3>
+      <div class="saved-action-list">
+        ${actionsByPriority[priorityTitle].map(action => `
+          <div class="saved-action-list-item" data-action-id="${action.action_id}">
+            <div class="action-list-item-main">
+              <span class="action-list-item-title">${escapeHtml(action.action_title)}</span>
+              <span class="action-list-item-status status-${action.status}">${escapeHtml(action.status)}</span>
+            </div>
+            <div class="action-list-item-actions">
+               <button class="btn-icon btn-view-saved-action" title="View Details">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
 }
 
 /**
@@ -205,38 +316,40 @@ async function triggerAnalysis() {
   
   try {
     const isCustomRole = !!window.__CUSTOM_ROLE_NAME__;
-    const endpoint = isCustomRole ? '/api/custom_role/analyze' : '/api/analyze';
     
-    const payload = {};
-    if (isCustomRole) {
-      payload.role_name = window.__CUSTOM_ROLE_NAME__;
-    }
+    // Step 1: Trigger the analysis generation
+    const analyzeEndpoint = isCustomRole ? '/api/custom_role/analyze' : '/api/analyze';
+    const analyzePayload = isCustomRole ? { role_name: window.__CUSTOM_ROLE_NAME__ } : {};
     
-    const response = await fetch(endpoint, {
+    const analyzeResponse = await fetch(analyzeEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(analyzePayload)
     });
     
-    const result = await response.json();
-    
-    if (result.analysis_error) {
-      throw new Error(result.analysis_error);
+    const analyzeResult = await analyzeResponse.json();
+    if (!analyzeResult.ok && analyzeResult.error) {
+        throw new Error(analyzeResult.error);
     }
+
+    // Step 2: Fetch the generated actions for the priorities
+    // This assumes the analysis populates short-term and long-term priorities
+    // and we now need to fetch the actions for them.
+    // We will need to trigger this for both short-term and long-term grids.
+    // This part of the logic may need to be adjusted based on what `analyzeResult` contains.
     
-    if (!result.analysis) {
-      throw new Error('No analysis results received');
+    // For now, let's assume the analysis endpoint returns the priorities, and we render them.
+    if (analyzeResult.plan) {
+      // In the new flow, the analysis endpoint just generates the plan.
+      // The actions are generated on demand by the user clicking a button on a priority card.
+      // So, we will just render the high-level analysis summary.
+      renderAnalysisSummary(analyzeResult.plan);
+      showNotification('Analysis plan generated. Next, generate actions for each priority.', 'success');
+    } else {
+       // Fallback for old analysis structure
+       renderAnalysisResults(analyzeResult.analysis);
     }
-    
-    currentAnalysis = result.analysis;
-    
-    // Render analysis results
-    renderAnalysisResults(result.analysis);
-    
-    showNotification('Analysis completed successfully!', 'success');
-    
+
   } catch (error) {
     console.error('Error during analysis:', error);
     showNotification('Analysis failed: ' + error.message, 'error');
@@ -245,6 +358,18 @@ async function triggerAnalysis() {
     analyzeBtn.textContent = originalText;
     analyzeBtn.disabled = false;
   }
+}
+
+/**
+ * Renders analysis summary into the dashboard.
+ * @param {Object} plan - The analysis plan object from the backend.
+ */
+function renderAnalysisSummary(plan) {
+    if (!plan || !plan.insights) return;
+    const summaryContainer = document.getElementById('analysis-summary');
+    if (summaryContainer) {
+        summaryContainer.innerHTML = `<ul>${plan.insights.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul>`;
+    }
 }
 
 /**

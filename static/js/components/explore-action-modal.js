@@ -5,11 +5,14 @@
  * with Gemini-generated context, next steps, notes, and workspace management.
  */
 
+console.log('ExploreActionModal script loading...');
+
 class ExploreActionModal {
     constructor() {
         this.modal = null;
         this.currentAction = null;
         this.isLoading = false;
+        this.actionPlan = null; // Add a property for the action plan component
         this.init();
     }
 
@@ -70,10 +73,6 @@ class ExploreActionModal {
                             <div id="tab-next-steps" class="tab-panel">
                                 <div class="next-steps-header">
                                     <h3>Recommended Next Steps</h3>
-                                    <button class="btn btn-primary" id="generate-next-steps-btn">
-                                        <span class="btn-text">Generate Next Steps</span>
-                                        <span class="btn-loading" style="display: none;">Generating...</span>
-                                    </button>
                                 </div>
                                 <div id="next-steps-content" class="next-steps-content">
                                     <div class="empty-state">
@@ -131,19 +130,49 @@ class ExploreActionModal {
         // Generate context
         document.getElementById('generate-context-btn').addEventListener('click', () => this.generateContext());
 
-        // Generate next steps
-        document.getElementById('generate-next-steps-btn').addEventListener('click', () => this.generateNextSteps());
-
-        // Notes functionality will be bound in bindNotesEvents()
+        // Notes functionality
+        this.bindNotesEvents();
 
         // Save to workspace
-        document.getElementById('save-action-btn').addEventListener('click', () => this.saveToWorkspace());
+        document.getElementById('save-action-btn').addEventListener('click', () => this._saveAction());
 
         // Share action
         document.getElementById('share-action-btn').addEventListener('click', () => this.shareAction());
 
         // Delete action (header icon)
         document.getElementById('delete-action-header-btn').addEventListener('click', () => this.deleteAction());
+    }
+
+    _resetModalContent() {
+        const contextContent = document.getElementById('context-content');
+        if (contextContent) {
+            contextContent.innerHTML = `
+                <div class="empty-state">
+                    <p>Click "Generate Context" to get AI-powered analysis and context for this action.</p>
+                </div>
+            `;
+        }
+
+        const nextStepsContent = document.getElementById('next-steps-content');
+        if (nextStepsContent) {
+            nextStepsContent.innerHTML = `
+                <div class="empty-state">
+                    <p>Click "Generate Next Steps" to get specific, actionable steps for this action.</p>
+                </div>
+            `;
+        }
+
+        const notesContent = this.modal.querySelector('#action-notes-content, #notes-content');
+        if (notesContent) {
+            notesContent.innerHTML = `
+                <div class="empty-state">
+                    <p>No notes yet. Add your thoughts and observations about this action.</p>
+                </div>
+            `;
+        }
+        
+        // Also reset to the first tab
+        this.switchTab('context');
     }
 
     bindNotesEvents() {
@@ -176,6 +205,7 @@ class ExploreActionModal {
     }
 
     open(actionData, priorityData, priorityId, gridType) {
+        this._resetModalContent();
         this.currentAction = {
             data: actionData,
             priority: priorityData,
@@ -183,17 +213,22 @@ class ExploreActionModal {
             gridType: gridType
         };
 
+        // Initialize ActionPlan component for the 'Next Steps' tab
+        const nextStepsContainer = this.modal.querySelector('#next-steps-content');
+        this.actionPlan = new ActionPlan(nextStepsContainer, this.currentAction.data.action_id);
+
         this.updateActionInfo();
         this.loadActionData();
         this.modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
         
-        // Re-bind events after modal is displayed to ensure elements exist
-        this.bindNotesEvents();
+        // Re-bind events after modal is displayed to ensure elements exist - MOVED TO BIND EVENTS
         
         // Check save status after a short delay
         setTimeout(() => {
-            this.checkAndUpdateSaveStatus();
+            // This is now handled via autosave.
+            // Initially, determine if the action is already saved.
+            this.updateSaveButtonState(this.currentAction.data.source_table === 'saved_actions');
         }, 500);
     }
 
@@ -243,7 +278,7 @@ class ExploreActionModal {
         const impactInfo = getImpactInfo(action.estimated_impact);
         
         // Ensure we have a normalized priority object for the Related Action card
-        const priority = (this.currentAction?.priority && this.currentAction.priority.data)
+        const normalizedPriority = (this.currentAction?.priority && this.currentAction.priority.data)
             ? this.currentAction.priority.data
             : (this.currentAction?.priority || {});
         
@@ -272,8 +307,8 @@ class ExploreActionModal {
         };
 
         // Resolved texts
-        const resolvedActionDesc = resolveDataPlaceholders(action.action_description, priority);
-        const resolvedPriorityWhy = resolveDataPlaceholders(priority.why || action.action_description, priority);
+        const resolvedActionDesc = resolveDataPlaceholders(action.action_description, normalizedPriority);
+        const resolvedPriorityWhy = resolveDataPlaceholders(normalizedPriority.why || action.action_description, normalizedPriority);
 
         actionInfo.innerHTML = `
             <div class="action-card-modal">
@@ -299,11 +334,11 @@ class ExploreActionModal {
                     ${this.formatContentText(resolvedActionDesc)}
                 </div>
                 <div class="priority-context-modal">
-                    <h4>Related Action:</h4>
+                    <h4>Related Priority:</h4>
                     <div class="priority-card-modal">
                         <div class="priority-header-modal">
                             <span class="priority-number-modal">${this.currentAction.priorityId}</span>
-                            <h4 class="priority-title-modal">${escapeHtml(action.action_title || priority.title || 'Untitled Action')}</h4>
+                            <h4 class="priority-title-modal">${escapeHtml(normalizedPriority.title || 'Untitled Priority')}</h4>
                             <span class="priority-category-modal">${escapeHtml(this.currentAction.gridType || 'general')}</span>
                         </div>
                         <div class="priority-description-modal">
@@ -332,18 +367,7 @@ class ExploreActionModal {
     }
 
     async loadActionData() {
-        if (!this.currentAction.data.action_id) {
-            // This is a new action exploration, no existing data to load
-            return;
-        }
-
-        // Check if we already have context and next steps data
-        if (this.currentAction.data.gemini_context || this.currentAction.data.next_steps) {
-            this.updateContextContent(this.currentAction.data.gemini_context);
-            this.updateNextStepsContent(this.currentAction.data.next_steps);
-            this.updateNotesContent(this.currentAction.data.notes || []);
-            return;
-        }
+        this.loadNotes();
 
         try {
             const response = await fetch(`/api/actions/${this.currentAction.data.action_id}`);
@@ -353,7 +377,7 @@ class ExploreActionModal {
                 this.currentAction.data = data.action;
                 this.updateContextContent(data.action.gemini_context);
                 this.updateNextStepsContent(data.action.next_steps);
-                this.updateNotesContent(data.action.notes || []);
+                // Notes are now loaded separately
             }
         } catch (error) {
             console.error('Error loading action data:', error);
@@ -370,23 +394,19 @@ class ExploreActionModal {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    priority_id: this.currentAction.priorityId,
-                    grid_type: this.currentAction.gridType,
+                    action_id: this.currentAction.data.action_id,
+                    action_data: this.currentAction.data,
                     priority_title: this.currentAction.priority.title,
-                    priority_description: this.currentAction.priority.why,
-                    action_data: this.currentAction.data
+                    priority_description: this.currentAction.priority.why
                 })
             });
 
             if (response.ok) {
                 const data = await response.json();
-                this.currentAction.data.action_id = data.action_id;
+                this.currentAction.data = data.action;
                 this.updateContextContent(data.action.gemini_context);
                 this.updateNextStepsContent(data.action.next_steps);
-                // Switch to context tab to show the generated content
                 this.switchTab('context');
-                // Check save status after generating context
-                this.checkAndUpdateSaveStatus();
             } else {
                 throw new Error('Failed to generate context');
             }
@@ -395,36 +415,6 @@ class ExploreActionModal {
             this.showError('context-content', 'Failed to generate context. Please try again.');
         } finally {
             this.setLoading('generate-context-btn', false);
-        }
-    }
-
-    async generateNextSteps() {
-        if (this.isLoading) return;
-        
-        this.setLoading('generate-next-steps-btn', true);
-        
-        try {
-            const response = await fetch(`/api/actions/${this.currentAction.data.action_id}/update`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    next_steps: 'regenerate'
-                })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                this.updateNextStepsContent(data.action.next_steps);
-                // Switch to next steps tab to show the generated content
-                this.switchTab('next-steps');
-            } else {
-                throw new Error('Failed to generate next steps');
-            }
-        } catch (error) {
-            console.error('Error generating next steps:', error);
-            this.showError('next-steps-content', 'Failed to generate next steps. Please try again.');
-        } finally {
-            this.setLoading('generate-next-steps-btn', false);
         }
     }
 
@@ -440,30 +430,111 @@ class ExploreActionModal {
             return;
         }
 
+        let contextData = {};
+        try {
+            contextData = typeof context === 'string' ? JSON.parse(context) : context;
+            if (typeof contextData !== 'object' || contextData === null) {
+                // Fallback for plain text context from older records
+                content.innerHTML = `<div class="context-display"><div class="context-text">${this.formatContextText(String(context))}</div></div>`;
+                return;
+            }
+        } catch (error) {
+            // Fallback for plain text context that isn't valid JSON
+            console.warn('Context was not valid JSON, displaying as plain text.');
+            content.innerHTML = `<div class="context-display"><div class="context-text">${this.formatContextText(String(context))}</div></div>`;
+            return;
+        }
+
+        const sections = [
+            { key: 'strategic_alignment', title: 'Strategic Alignment', icon: '🎯' },
+            { key: 'market_rationale', title: 'Market Rationale', icon: '📈' },
+            { key: 'potential_impact', title: 'Potential Impact', icon: '⚡' },
+            { key: 'risk_assessment', title: 'Risk Assessment', icon: '⚠️' }
+        ];
+
+        const contextHtml = sections.map(section => {
+            const sectionContent = contextData[section.key];
+            if (!sectionContent) return '';
+
+            return `
+                <div class="context-section-card">
+                    <div class="context-section-header">
+                        <h4 class="context-section-title">${this.escapeHtml(section.title)}</h4>
+                        <div class="context-section-icon">${section.icon}</div>
+                    </div>
+                    <div class="context-section-content">
+                        ${this.formatContextText(sectionContent)}
+                    </div>
+                    <div class="ai-assistant-container" id="ai-assistant-context-${section.key}"></div>
+                </div>
+            `;
+        }).join('');
+
         content.innerHTML = `
             <div class="context-display">
-                <div class="context-text">${this.formatContextText(context)}</div>
+                ${contextHtml}
             </div>
         `;
+
+        // Initialize AI Assistant for each context section
+        setTimeout(() => {
+            sections.forEach(section => {
+                if (!contextData[section.key]) return;
+                
+                const aiAssistantContainer = content.querySelector(`#ai-assistant-context-${section.key}`);
+                if (aiAssistantContainer) {
+                    if (typeof AIAssistant !== 'undefined') {
+                        const aiAssistant = new AIAssistant(
+                            aiAssistantContainer, 
+                            this.currentAction.data.action_id, 
+                            'context', 
+                            section.key, 
+                            {
+                                title: section.title,
+                                content: contextData[section.key],
+                                fullContext: contextData
+                            }
+                        );
+                        
+                        // Load existing conversations if they exist
+                        if (this.currentAction.data && this.currentAction.data.ai_conversations) {
+                            const conversations = JSON.parse(this.currentAction.data.ai_conversations);
+                            const sectionConversations = conversations[`context_${section.key}`] || [];
+                            aiAssistant.setExistingConversations(sectionConversations);
+                        }
+                    } else {
+                        console.error('AIAssistant class not found. Check if the script is loaded properly.');
+                        aiAssistantContainer.innerHTML = '<p style="color: red;">AI Assistant not available. Please refresh the page.</p>';
+                    }
+                }
+            });
+        }, 100); // Small delay to ensure DOM is ready
     }
 
     updateNextStepsContent(nextSteps) {
-        const content = document.getElementById('next-steps-content');
-        
-        if (!nextSteps) {
+        if (this.actionPlan) {
+            let steps = [];
+            try {
+                steps = typeof nextSteps === 'string' ? JSON.parse(nextSteps) : nextSteps;
+                if (!Array.isArray(steps)) {
+                    steps = [];
+                }
+            } catch (error) {
+                console.error('Error parsing next steps:', error);
+                steps = [];
+            }
+            
+            // Update the ActionPlan's actionData so AI Assistant can access it
+            this.actionPlan.actionData = this.currentAction.data;
+            this.actionPlan.render(steps);
+        } else {
+            const content = document.getElementById('next-steps-content');
             content.innerHTML = `
                 <div class="empty-state">
                     <p>Click "Generate Next Steps" to get specific, actionable steps for this action.</p>
                 </div>
             `;
-            return;
         }
-
-        content.innerHTML = `
-            <div class="next-steps-display">
-                <div class="next-steps-text">${this.formatNextStepsText(nextSteps)}</div>
-            </div>
-        `;
     }
 
     updateNotesContent(notes) {
@@ -480,7 +551,7 @@ class ExploreActionModal {
 
         const notesHtml = notes.map(note => `
             <div class="note-item">
-                <div class="note-content">${escapeHtml(note.note_content)}</div>
+                <div class="note-content">${escapeHtml(note.note_text)}</div>
                 <div class="note-meta">
                     <span class="note-date">${new Date(note.created_ts).toLocaleString()}</span>
                     <button class="btn-delete-subtle" onclick="exploreActionModal.deleteNote(${note.id})" title="Delete note">
@@ -534,17 +605,17 @@ class ExploreActionModal {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    note_content: noteContent
+                    note_text: noteContent
                 })
             });
 
             if (response.ok) {
-                const data = await response.json();
                 // Clear the textarea
                 if (textarea) textarea.value = '';
                 this.hideAddNoteForm();
                 // Reload notes to show new note
-                this.updateNotesContent(data.notes);
+                this.loadNotes();
+                this._saveAction(); // Autosave after adding a note
             } else {
                 const errorText = await response.text();
                 console.error('Save note error response:', errorText);
@@ -553,6 +624,25 @@ class ExploreActionModal {
         } catch (error) {
             console.error('Error saving note:', error);
             alert('Failed to save note. Please try again.');
+        }
+    }
+
+    async loadNotes() {
+        if (!this.currentAction?.data?.action_id) {
+            this.updateNotesContent([]);
+            return;
+        }
+        try {
+            const response = await fetch(`/api/actions/${this.currentAction.data.action_id}/notes`);
+            if (response.ok) {
+                const data = await response.json();
+                this.updateNotesContent(data.notes || []);
+            } else {
+                this.showError('action-notes-content', 'Failed to load notes.');
+            }
+        } catch (error) {
+            console.error('Error loading notes:', error);
+            this.showError('action-notes-content', 'Error loading notes.');
         }
     }
 
@@ -578,31 +668,36 @@ class ExploreActionModal {
         }
     }
 
-    async saveToWorkspace() {
+    async _saveAction() {
         if (!this.currentAction.data.action_id) {
             alert('Please generate context first before saving to workspace.');
             return;
         }
 
+        this.updateSaveButtonState(false, true); // Indicate saving
+
         try {
-            const response = await fetch(`/api/actions/${this.currentAction.data.action_id}/save`, {
-                method: 'POST'
+            const response = await fetch(`/api/actions/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action_id: this.currentAction.data.action_id })
             });
 
             if (response.ok) {
-                this.updateSaveButtonState(true);
-                this.showSuccessMessage('Action saved to workspace successfully!');
+                this.updateSaveButtonState(true); // Indicate saved
+                this.showSuccessMessage('Action saved successfully!');
                 
-                // Reload workspace actions in dashboard
-                if (typeof loadWorkspaceActions === 'function') {
-                    loadWorkspaceActions();
+                if (typeof loadSavedActions === 'function') {
+                    loadSavedActions();
                 }
             } else {
+                this.updateSaveButtonState(false); // Re-enable save button on error
                 throw new Error('Failed to save action to workspace');
             }
         } catch (error) {
             console.error('Error saving action to workspace:', error);
             alert('Failed to save action to workspace. Please try again.');
+            this.updateSaveButtonState(false); // Re-enable save button on error
         }
     }
 
@@ -669,43 +764,29 @@ class ExploreActionModal {
         }
     }
 
-    updateSaveButtonState(isSaved) {
+    updateSaveButtonState(isSaved, isSaving = false) {
         const saveBtn = document.getElementById('save-action-btn');
         if (!saveBtn) return;
 
-        if (isSaved) {
-            saveBtn.innerHTML = '✅ Saved to Workspace';
+        if (isSaving) {
+            saveBtn.innerHTML = '⏳ Saving...';
             saveBtn.disabled = true;
-            saveBtn.style.background = 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)';
-            saveBtn.style.color = '#059669';
+            saveBtn.style.background = 'var(--color-background-muted)';
+            saveBtn.style.color = 'var(--color-text-muted)';
+            saveBtn.title = 'Saving action...';
+        } else if (isSaved) {
+            saveBtn.innerHTML = '✅ Saved';
+            saveBtn.disabled = true;
+            saveBtn.style.background = 'var(--color-success-light)';
+            saveBtn.style.color = 'var(--color-success-dark)';
             saveBtn.title = 'Action is saved to workspace';
         } else {
-            saveBtn.innerHTML = '💾 Save to Workspace';
+            saveBtn.innerHTML = '💾 Save';
             saveBtn.disabled = false;
-            saveBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            saveBtn.style.background = 'var(--color-primary)';
             saveBtn.style.color = 'white';
             saveBtn.title = 'Save this action to your workspace';
         }
-    }
-
-    checkAndUpdateSaveStatus() {
-        if (!this.currentAction?.data?.action_id) return;
-        
-        // Check if this action is saved to workspace
-        fetch('/api/actions/workspace')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const isSaved = data.actions.some(action => 
-                        action.action_id === this.currentAction.data.action_id
-                    );
-                    this.updateSaveButtonState(isSaved);
-                }
-            })
-            .catch(error => {
-                console.error('Error checking save status:', error);
-                this.updateSaveButtonState(false);
-            });
     }
 
     showSuccessMessage(message) {
@@ -854,21 +935,220 @@ class ExploreActionModal {
         // Use the same formatting as context text
         return this.formatContextText(text);
     }
+
+    formatContentText(text) {
+        // Remove unwanted introductory text
+        let cleanedText = text;
+        
+        // Remove common AI introductory phrases
+        const unwantedPhrases = [
+            /^Of course\.?\s*/i,
+            /^As a business strategy expert,?\s*/i,
+            /^here is a comprehensive analysis of the\s*/i,
+            /^priority for the Customer Analyst role\.?\s*/i,
+            /^This priority represents\s*/i,
+            /^A \d+% quarter-over-quarter drop\s*/i,
+            /^quarter-over-quarter drop in new customers,?\s*/i,
+            /^especially with a \d+% decline\s*/i,
+            /^signals an urgent and potentially systemic failure\s*/i,
+            /^that requires immediate, data-driven investigation\.?\s*/i
+        ];
+        
+        // Clean up the text by removing unwanted phrases
+        unwantedPhrases.forEach(phrase => {
+            cleanedText = cleanedText.replace(phrase, '');
+        });
+        
+        // Convert markdown-like formatting to HTML
+        let html = escapeHtml(cleanedText);
+        
+        // Convert ## headers to <h2>
+        html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+        
+        // Convert ### headers to <h3>
+        html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+        
+        // Convert #### headers to <h4>
+        html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+        
+        // Convert **bold** to <strong>
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        
+        // Convert *italic* to <em>
+        html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        
+        // Convert bullet points (- or •) to proper list items
+        html = html.replace(/^[\s]*[-•]\s+(.+)$/gm, '<li>$1</li>');
+        
+        // Wrap consecutive list items in <ul>
+        html = html.replace(/(<li>.*<\/li>)/gs, (match) => {
+            const listItems = match.match(/<li>.*?<\/li>/g);
+            if (listItems && listItems.length > 1) {
+                return `<ul>${match}</ul>`;
+            }
+            return match;
+        });
+        
+        // Convert numbered lists (1. 2. etc.)
+        html = html.replace(/^[\s]*\d+\.\s+(.+)$/gm, '<li>$1</li>');
+        
+        // Wrap consecutive numbered list items in <ol>
+        html = html.replace(/(<li>.*<\/li>)/gs, (match) => {
+            const listItems = match.match(/<li>.*?<\/li>/g);
+            if (listItems && listItems.length > 1) {
+                return `<ol>${match}</ol>`;
+            }
+            return match;
+        });
+        
+        // Convert line breaks to paragraphs, but preserve headers and lists
+        const lines = html.split('\n');
+        let result = '';
+        let inList = false;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            
+            if (line.startsWith('<h') || line.startsWith('<ul') || line.startsWith('<ol') || line.startsWith('<li')) {
+                if (inList && !line.startsWith('<li')) {
+                    result += '</ul></ol>';
+                    inList = false;
+                }
+                result += line + '\n';
+            } else if (line.startsWith('<li')) {
+                if (!inList) {
+                    result += '<ul>';
+                    inList = true;
+                }
+                result += line + '\n';
+            } else if (line === '') {
+                if (inList) {
+                    result += '</ul>';
+                    inList = false;
+                }
+                result += '\n';
+            } else if (line) {
+                if (inList) {
+                    result += '</ul>';
+                    inList = false;
+                }
+                result += `<p>${line}</p>\n`;
+            }
+        }
+        
+        if (inList) {
+            result += '</ul>';
+        }
+        
+        return result;
+    }
+
+    // Render structured context (context_json) if present on window from latest insights call
+    renderStructuredContext() {
+        try {
+            const ctx = this.currentAction?.data?.context_json || null;
+            if (!ctx || typeof ctx !== 'object') return '';
+            const mc = ctx.market_context || {}; const bi = ctx.business_impact || {};
+            const kc = Array.isArray(ctx.key_challenges) ? ctx.key_challenges : [];
+            const sm = Array.isArray(ctx.success_metrics) ? ctx.success_metrics : [];
+            const ii = Array.isArray(ctx.industry_insights) ? ctx.industry_insights : [];
+
+            const section = (title, body) => body ? `<div class="structured-section"><h4>${title}</h4>${body}</div>` : '';
+            const list = (items) => `<ul>${items.map(x=>`<li>${this.escapeHtml(String(x))}</li>`).join('')}</ul>`;
+            const table = (rows, cols) => {
+                if (!rows.length) return '';
+                return `<table><thead><tr>${cols.map(c=>`<th>${c.header}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${this.escapeHtml(String(r[c.key] ?? ''))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+            };
+
+            const mcHtml = section('Market Context', [
+                mc.summary ? `<p>${this.escapeHtml(mc.summary)}</p>` : '',
+                Array.isArray(mc.trends) && mc.trends.length ? section('Trends', list(mc.trends)) : '',
+                Array.isArray(mc.sources) && mc.sources.length ? section('Sources', table(mc.sources, [
+                    {key:'title', header:'Title'}, {key:'url', header:'URL'}, {key:'snippet', header:'Snippet'}
+                ])) : ''
+            ].join(''));
+
+            const biHtml = section('Business Impact', [
+                bi.summary ? `<p>${this.escapeHtml(bi.summary)}</p>` : ''
+            ].join(''));
+
+            const kcHtml = kc.length ? section('Key Challenges', table(kc, [
+                {key:'challenge', header:'Challenge'}, {key:'why_it_matters', header:'Why it matters'}, {key:'risk_level', header:'Risk'}
+            ])) : '';
+
+            const smHtml = sm.length ? section('Success Metrics', table(sm, [
+                {key:'metric', header:'Metric'}, {key:'target', header:'Target'}, {key:'timeline_weeks', header:'Weeks'}
+            ])) : '';
+
+            const iiHtml = ii.length ? section('Industry Insights', table(ii, [
+                {key:'practice', header:'Practice'}, {key:'evidence', header:'Evidence'}, {key:'source_url', header:'Source URL'}
+            ])) : '';
+
+            const assembled = [mcHtml, biHtml, kcHtml, smHtml, iiHtml].filter(Boolean).join('');
+            return assembled ? `<div class="structured-context">${assembled}</div>` : '';
+        } catch(_) { return ''; }
+    }
+
+    // local html escape
+    escapeHtml(v){
+        const div=document.createElement('div'); div.textContent=String(v); return div.innerHTML;
+    }
 }
 
 // Initialize the modal when the page loads
 let exploreActionModal;
 
-document.addEventListener('DOMContentLoaded', () => {
+// Function to initialize the modal
+function initializeExploreActionModal() {
+    if (window.exploreActionModal) {
+        console.log('ExploreActionModal is already initialized.');
+        return false;
+    }
     console.log('Initializing ExploreActionModal...');
     try {
         exploreActionModal = new ExploreActionModal();
         console.log('ExploreActionModal initialized successfully');
         window.exploreActionModal = exploreActionModal; // Make it globally available
+        console.log('window.exploreActionModal set:', !!window.exploreActionModal);
+        return true;
     } catch (error) {
         console.error('Error initializing ExploreActionModal:', error);
+        console.error('Error stack:', error.stack);
+        return false;
     }
-});
+}
 
-// Export for use in other modules
+// Try multiple initialization strategies
+document.addEventListener('DOMContentLoaded', initializeExploreActionModal);
+
+// Also try to initialize immediately if DOM is already loaded
+if (document.readyState === 'loading') {
+    // DOM is still loading, wait for DOMContentLoaded
+} else {
+    // DOM is already loaded, initialize immediately
+    console.log('DOM already loaded, initializing ExploreActionModal immediately...');
+    initializeExploreActionModal();
+}
+
+// Fallback: try again after a short delay
+setTimeout(() => {
+    if (!window.exploreActionModal) {
+        console.log('Fallback initialization attempt...');
+        initializeExploreActionModal();
+    }
+}, 1000);
+
+// Export for use in other modules - do this immediately
 window.ExploreActionModal = ExploreActionModal;
+console.log('ExploreActionModal class exported to window:', !!window.ExploreActionModal);
+
+// Debug function to check modal status
+window.debugExploreActionModal = function() {
+    console.log('=== ExploreActionModal Debug Info ===');
+    console.log('window.exploreActionModal exists:', !!window.exploreActionModal);
+    console.log('window.ExploreActionModal class exists:', !!window.ExploreActionModal);
+    console.log('Document ready state:', document.readyState);
+    console.log('Modal element in DOM:', !!document.getElementById('explore-action-modal'));
+    console.log('Available modal globals:', Object.keys(window).filter(k => k.includes('Modal')));
+    console.log('=====================================');
+};

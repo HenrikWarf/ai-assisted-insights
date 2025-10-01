@@ -188,3 +188,7 @@ function forceAccordionClosed() {
     icon.textContent = '▶';
   });
 }
+
+// Export functions to global scope
+window.enhanceKPICards = enhanceKPICards;
+window.initAccordion = initAccordion;

@@ -10,6 +10,7 @@ class PriorityExploreModal {
         this.modal = null;
         this.currentPriority = null;
         this.isLoading = false;
+        this.actionsMap = new Map();
         this.init();
     }
 
@@ -170,7 +171,8 @@ class PriorityExploreModal {
         this.currentPriority = {
             data: priorityData,
             id: priorityId,
-            gridType: gridType
+            gridType: gridType,
+            insights: null // Reset insights when opening
         };
 
         this.updatePriorityInfo();
@@ -289,24 +291,30 @@ class PriorityExploreModal {
     }
 
     async loadPriorityData() {
-        try {
-            const response = await fetch('/api/priority-insights/summary', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    priority_id: this.currentPriority.id,
-                    grid_type: this.currentPriority.gridType
-                })
-            });
+        this.loadInsights();
+        this.loadActions();
+        this.loadNotes();
+    }
 
+    async loadInsights() {
+        // This function will need to be updated if insights are moved to the role DB
+        // For now, it can remain as is or be integrated with a new endpoint
+        const insightsContent = document.getElementById('insights-content');
+        insightsContent.innerHTML = `<div class="empty-state"><p>Click "Generate Insights" to get AI-powered analysis.</p></div>`;
+    }
+
+    async loadActions() {
+        try {
+            const response = await fetch(`/api/priority-insights/proposed-actions?priority_id=${this.currentPriority.id}&grid_type=${this.currentPriority.gridType}`);
             if (response.ok) {
                 const data = await response.json();
-                this.updateInsightsContent(data.summary.insights);
-                this.updateActionsContent(data.summary.actions);
-                this.updateNotesContent(data.summary.notes);
+                this.updateActionsContent(data.actions || []);
+            } else {
+                this.showError('actions-content', 'Failed to load actions.');
             }
         } catch (error) {
-            console.error('Error loading priority data:', error);
+            console.error('Error loading actions:', error);
+            this.showError('actions-content', 'Error loading actions.');
         }
     }
 
@@ -328,13 +336,12 @@ class PriorityExploreModal {
 
             if (response.ok) {
                 const data = await response.json();
+                this.currentPriority.insights = data.insights; // Store the new insights
                 this.updateInsightsContent(data.insights);
-                // Reload all data to ensure consistency
-                await this.loadPriorityData();
                 // Switch to insights tab to show the generated content
                 this.switchTab('insights');
-                // Check save status after generating insights
-                this.checkAndUpdateSaveStatus();
+                // The analysis now has unsaved changes, so reflect this in the save button
+                this.updateSaveButtonState(false);
             } else {
                 throw new Error('Failed to generate insights');
             }
@@ -364,6 +371,10 @@ class PriorityExploreModal {
 
             if (response.ok) {
                 const data = await response.json();
+                // Store structured actions for merging
+                if (Array.isArray(data.actions_structured)) {
+                    window.__LATEST_STRUCTURED_ACTIONS__ = data.actions_structured;
+                }
                 this.updateActionsContent(data.actions);
                 // Reload all data to ensure consistency
                 await this.loadPriorityData();
@@ -398,9 +409,6 @@ class PriorityExploreModal {
             <div class="insights-display">
                 <div class="insights-meta">
                     <span class="insights-date">Generated: ${new Date(insights.created_ts).toLocaleString()}</span>
-                    <button class="btn-delete-subtle" onclick="priorityExploreModal.deleteInsight(${insights.id})" title="Delete insight">
-                        🗑️
-                    </button>
                 </div>
                 <div class="insights-text">${this.formatInsightsText(insights.insights_content)}</div>
             </div>
@@ -409,6 +417,7 @@ class PriorityExploreModal {
 
     updateActionsContent(actions) {
         const content = document.getElementById('actions-content');
+        this.actionsMap.clear();
         
         if (!actions || actions.length === 0) {
             content.innerHTML = `
@@ -419,7 +428,23 @@ class PriorityExploreModal {
             return;
         }
 
+        // Merge structured actions into flat list by title (case-insensitive), and embed action_json for Explore
+        try {
+            actions = actions.map(a => {
+                const actionDetails = JSON.parse(a.action_json || '{}');
+                // Merge details from action_json into the top-level action object
+                return { ...a, ...actionDetails };
+            });
+        } catch(e) {
+            console.error("Error parsing action_json:", e);
+        }
+
         const actionsHtml = actions.map(action => {
+            // Store the action for later retrieval
+            if (action.action_id) {
+                this.actionsMap.set(action.action_id, action);
+            }
+            
             // Helper function to get icon and class for priority
             const getPriorityInfo = (level) => {
                 switch(level) {
@@ -472,15 +497,12 @@ class PriorityExploreModal {
                                     ${impactInfo.icon} Impact: ${action.estimated_impact}
                                 </span>
                             ` : ''}
-                            <button class="btn-delete-subtle" onclick="priorityExploreModal.deleteAction(${action.id})" title="Delete action">
-                                🗑️
-                            </button>
                         </div>
                     </div>
                     <div class="action-description">${escapeHtml(action.action_description)}</div>
                     <div class="action-actions">
                         <button class="btn btn-primary btn-sm explore-action-btn" 
-                                onclick="priorityExploreModal.exploreAction(${JSON.stringify(action).replace(/"/g, '&quot;')}, ${JSON.stringify(this.currentPriority.data).replace(/"/g, '&quot;')}, '${this.currentPriority.id}', '${this.currentPriority.gridType}')"
+                                onclick='priorityExploreModal.exploreAction("${action.action_id}")'
                                 title="Explore this action in detail">
                             🔍 Explore Action
                         </button>
@@ -510,12 +532,9 @@ class PriorityExploreModal {
 
         const notesHtml = notes.map(note => `
             <div class="note-item">
-                <div class="note-content">${escapeHtml(note.note_content)}</div>
+                <div class="note-content">${escapeHtml(note.note_text)}</div>
                 <div class="note-meta">
                     <span class="note-date">${new Date(note.created_ts).toLocaleString()}</span>
-                    <button class="btn-delete-subtle" onclick="priorityExploreModal.deleteNote(${note.id})" title="Delete note">
-                        🗑️
-                    </button>
                 </div>
             </div>
         `).join('');
@@ -548,7 +567,7 @@ class PriorityExploreModal {
                 body: JSON.stringify({
                     priority_id: this.currentPriority.id,
                     grid_type: this.currentPriority.gridType,
-                    note_content: noteContent
+                    note_text: noteContent
                 })
             });
 
@@ -557,10 +576,8 @@ class PriorityExploreModal {
                 // Clear the textarea
                 document.getElementById('note-textarea').value = '';
                 this.hideAddNoteForm();
-                // Reload all data to show new note
-                await this.loadPriorityData();
-                // Check save status after adding note
-                this.checkAndUpdateSaveStatus();
+                // Reload notes to show the new one
+                await this.loadNotes();
             } else {
                 throw new Error('Failed to save note');
             }
@@ -570,72 +587,22 @@ class PriorityExploreModal {
         }
     }
 
-    async deleteInsight(insightId) {
-        if (!confirm('Are you sure you want to delete this insight? This action cannot be undone.')) {
-            return;
-        }
-
+    async loadNotes() {
+        if (!this.currentPriority) return;
         try {
-            const response = await fetch(`/api/priority-insights/insights/${insightId}`, {
-                method: 'DELETE'
-            });
-
+            const response = await fetch(`/api/priority-insights/notes?priority_id=${this.currentPriority.id}&grid_type=${this.currentPriority.gridType}`);
             if (response.ok) {
-                // Reload all data to show updated insights
-                await this.loadPriorityData();
+                const data = await response.json();
+                this.updateNotesContent(data.notes || []);
             } else {
-                throw new Error('Failed to delete insight');
+                this.showError('notes-content', 'Failed to load notes.');
             }
         } catch (error) {
-            console.error('Error deleting insight:', error);
-            alert('Failed to delete insight. Please try again.');
+            console.error('Error loading notes:', error);
+            this.showError('notes-content', 'Error loading notes.');
         }
     }
-
-    async deleteAction(actionId) {
-        if (!confirm('Are you sure you want to delete this action? This action cannot be undone.')) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/priority-insights/actions/${actionId}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                // Reload all data to show updated actions
-                await this.loadPriorityData();
-            } else {
-                throw new Error('Failed to delete action');
-            }
-        } catch (error) {
-            console.error('Error deleting action:', error);
-            alert('Failed to delete action. Please try again.');
-        }
-    }
-
-    async deleteNote(noteId) {
-        if (!confirm('Are you sure you want to delete this note? This action cannot be undone.')) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`/api/priority-insights/notes/${noteId}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                // Reload all data to show updated notes
-                await this.loadPriorityData();
-            } else {
-                throw new Error('Failed to delete note');
-            }
-        } catch (error) {
-            console.error('Error deleting note:', error);
-            alert('Failed to delete note. Please try again.');
-        }
-    }
-
+    
     async clearPriorityData() {
         if (!confirm('Are you sure you want to clear all data for this priority? This action cannot be undone.')) {
             return;
@@ -675,7 +642,8 @@ class PriorityExploreModal {
                 body: JSON.stringify({
                     priority_id: this.currentPriority.id,
                     grid_type: this.currentPriority.gridType,
-                    priority_data: this.currentPriority.data
+                    priority_data: this.currentPriority.data,
+                    insights_content: this.currentPriority.insights ? this.currentPriority.insights.insights_content : null
                 })
             });
 
@@ -732,8 +700,11 @@ class PriorityExploreModal {
             const response = await fetch('/api/priority-insights/saved');
             if (response.ok) {
                 const data = await response.json();
-                const isSaved = data.analyses.some(analysis => 
-                    analysis.priority_id === this.currentPriority.id && 
+                const list = Array.isArray(data.analyses)
+                    ? data.analyses
+                    : (Array.isArray(data.saved) ? data.saved : []);
+                const isSaved = list.some(analysis =>
+                    analysis.priority_id === this.currentPriority.id &&
                     analysis.grid_type === this.currentPriority.gridType
                 );
                 this.updateSaveButtonState(isSaved);
@@ -802,38 +773,62 @@ class PriorityExploreModal {
         `;
     }
 
-    exploreAction(actionData, priorityData, priorityId, gridType) {
-        // Open the Explore Action modal
-        if (window.exploreActionModal) {
-            window.exploreActionModal.open(actionData, priorityData, priorityId, gridType);
-        } else {
-            console.error('ExploreActionModal not available');
-            alert('Explore Action feature is not available. Please refresh the page.');
+    async exploreAction(actionId) {
+        const actionData = this.actionsMap.get(actionId);
+        if (!actionData) {
+            console.error('Could not find action data for ID:', actionId);
+            alert('An error occurred while trying to explore the action. Please try again.');
+            return;
         }
+
+        if (!window.exploreActionModal) {
+            alert('Explore Action modal not available. Please refresh the page.');
+            console.error('ExploreActionModal instance not found on window object.');
+            return;
+        }
+
+        let finalActionData = { ...actionData };
+
+        // If the action has an ID, it might have been saved with more details (like context).
+        // Fetch the latest version of the action to ensure we have the most up-to-date info.
+        if (finalActionData.action_id) {
+            try {
+                const response = await fetch(`/api/actions/${finalActionData.action_id}`);
+                if (response.ok) {
+                    const updatedAction = await response.json();
+                    // Merge with existing data, preferring the fresh data from the DB
+                    finalActionData = { ...finalActionData, ...updatedAction };
+                    console.log('Fetched latest action data:', finalActionData);
+                } else {
+                    console.warn(`Failed to fetch latest data for action ${finalActionData.action_id}. Using existing data.`);
+                }
+            } catch (error) {
+                console.error(`Error fetching action ${finalActionData.action_id}:`, error);
+            }
+        }
+
+        // This logic ensures the structured action_json is attached if it exists on the window
+        // but not on the action object itself (for newly generated, unsaved actions).
+        if (!finalActionData.action_json && window.__LATEST_STRUCTURED_ACTIONS__) {
+            const matchingStructuredAction = window.__LATEST_STRUCTURED_ACTIONS__.find(
+                (a) => a.title === finalActionData.title || (a.summary && a.summary.title === finalActionData.title)
+            );
+            if (matchingStructuredAction && matchingStructuredAction.action_json) {
+                finalActionData.action_json = matchingStructuredAction.action_json;
+            }
+        }
+
+        window.exploreActionModal.open(
+            finalActionData,
+            this.currentPriority.data,
+            this.currentPriority.id,
+            this.currentPriority.gridType
+        );
     }
 
     formatInsightsText(text) {
         // Remove unwanted introductory text
         let cleanedText = text;
-        
-        // Remove common AI introductory phrases
-        const unwantedPhrases = [
-            /^Of course\.?\s*/i,
-            /^As a business strategy expert,?\s*/i,
-            /^here is a comprehensive analysis of the\s*/i,
-            /^priority for the Customer Analyst role\.?\s*/i,
-            /^This priority represents\s*/i,
-            /^A \d+% quarter-over-quarter drop\s*/i,
-            /^quarter-over-quarter drop in new customers,?\s*/i,
-            /^especially with a \d+% decline\s*/i,
-            /^signals an urgent and potentially systemic failure\s*/i,
-            /^that requires immediate, data-driven investigation\.?\s*/i
-        ];
-        
-        // Clean up the text by removing unwanted phrases
-        unwantedPhrases.forEach(phrase => {
-            cleanedText = cleanedText.replace(phrase, '');
-        });
         
         // Convert markdown-like formatting to HTML
         let html = escapeHtml(cleanedText);

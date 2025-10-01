@@ -2,23 +2,37 @@
   "kpis": [
     {
       "id": "kpi_total_customers",
-      "title": "Total Customers",
-      "description": "The total number of unique customers in the database.",
+      "title": "Total Unique Customers",
+      "description": "The total count of unique customers in the database.",
       "formula": "SELECT COUNT(DISTINCT customer_id) FROM customers",
       "table": "customers"
     },
     {
       "id": "kpi_avg_ltv",
       "title": "Average Customer Lifetime Value (LTV)",
-      "description": "The average total revenue generated from a customer over their entire relationship with the company.",
+      "description": "The average total revenue generated per customer over their entire relationship with the company.",
       "formula": "SELECT AVG(CAST(total_spent_ltv AS REAL)) FROM customers",
       "table": "customers"
     },
     {
       "id": "kpi_avg_aov",
       "title": "Average Order Value (AOV)",
-      "description": "The average amount a customer spends per order.",
+      "description": "The average amount spent each time a customer places an order.",
       "formula": "SELECT AVG(CAST(average_order_value AS REAL)) FROM customers",
+      "table": "customers"
+    },
+    {
+      "id": "kpi_repeat_purchase_rate",
+      "title": "Repeat Purchase Rate",
+      "description": "The percentage of customers who have made more than one purchase.",
+      "formula": "SELECT (CAST(SUM(CASE WHEN CAST(total_number_of_orders AS INTEGER) > 1 THEN 1 ELSE 0 END) AS REAL) * 100) / COUNT(DISTINCT customer_id) FROM customers",
+      "table": "customers"
+    },
+    {
+      "id": "kpi_avg_conversion_time_days",
+      "title": "Avg. Time to First Purchase (Days)",
+      "description": "The average number of days between a customer's registration and their first purchase.",
+      "formula": "SELECT AVG(JULIANDAY(first_purchase_date) - JULIANDAY(registration_date)) FROM customers WHERE first_purchase_date IS NOT NULL AND registration_date IS NOT NULL",
       "table": "customers"
     },
     {
@@ -27,91 +41,58 @@
       "description": "The average percentage of items returned by customers.",
       "formula": "SELECT AVG(CAST(return_rate_percent AS REAL)) FROM customers",
       "table": "customers"
-    },
-    {
-      "id": "kpi_avg_time_to_first_purchase",
-      "title": "Avg. Time to First Purchase (Days)",
-      "description": "The average number of days between a customer's registration and their first purchase, indicating activation speed.",
-      "formula": "SELECT AVG(JULIANDAY(first_purchase_date) - JULIANDAY(registration_date)) FROM customers",
-      "table": "customers"
     }
   ],
   "charts": [
     {
-      "id": "chart_quarterly_customer_acquisitions",
-      "title": "Quarterly Customer Acquisitions by Source",
-      "type": "bar",
-      "description": "A breakdown of new customer registrations each quarter by their acquisition source. This helps in understanding the performance of different marketing channels over time on a quarterly basis.",
-      "query_sql": "SELECT STRFTIME('%Y', registration_date) || '-Q' || ((CAST(STRFTIME('%m', registration_date) AS INTEGER) + 2) / 3) AS registration_quarter, acquisition_source, COUNT(customer_id) AS new_customers FROM customers WHERE registration_date IS NOT NULL AND acquisition_source IS NOT NULL GROUP BY 1, 2 ORDER BY 1 ASC, 3 DESC;"
+      "id": "chart_monthly_acquisitions",
+      "title": "New Customer Registrations Over Time",
+      "type": "line",
+      "description": "Shows the trend of new customer sign-ups by month and year, indicating business growth and seasonality.",
+      "query_sql": "SELECT STRFTIME('%Y-%m', registration_date) AS registration_month, COUNT(DISTINCT customer_id) AS new_customers FROM customers WHERE registration_date IS NOT NULL GROUP BY 1 ORDER BY 1 ASC"
     },
     {
       "id": "chart_ltv_by_acquisition_source",
       "title": "Average LTV by Acquisition Source",
       "type": "bar",
-      "description": "Compares the average lifetime value (LTV) of customers acquired through different marketing channels.",
-      "query_sql": "SELECT acquisition_source, AVG(CAST(total_spent_ltv AS REAL)) AS average_ltv FROM customers GROUP BY acquisition_source ORDER BY average_ltv DESC;"
+      "description": "Compares the average lifetime value of customers acquired through different marketing channels to evaluate channel profitability.",
+      "query_sql": "SELECT acquisition_source, AVG(CAST(total_spent_ltv AS REAL)) AS average_ltv FROM customers GROUP BY acquisition_source ORDER BY average_ltv DESC"
     },
     {
       "id": "chart_age_distribution",
       "title": "Customer Age Distribution",
       "type": "bar",
-      "description": "Shows the number of customers in different age brackets, highlighting the dominant age groups.",
-      "query_sql": "SELECT CASE WHEN CAST(age AS INTEGER) BETWEEN 14 AND 17 THEN '14-17' WHEN CAST(age AS INTEGER) BETWEEN 18 AND 24 THEN '18-24' WHEN CAST(age AS INTEGER) BETWEEN 25 AND 34 THEN '25-34' WHEN CAST(age AS INTEGER) BETWEEN 35 AND 44 THEN '35-44' ELSE '45+' END AS age_group, COUNT(customer_id) AS number_of_customers FROM customers GROUP BY age_group ORDER BY age_group;"
+      "description": "Visualizes the distribution of customers across different age groups, highlighting the core age demographic.",
+      "query_sql": "SELECT CASE WHEN CAST(age AS INTEGER) BETWEEN 14 AND 17 THEN '14-17' WHEN CAST(age AS INTEGER) BETWEEN 18 AND 24 THEN '18-24' WHEN CAST(age AS INTEGER) BETWEEN 25 AND 34 THEN '25-34' WHEN CAST(age AS INTEGER) >= 35 THEN '35+' ELSE 'Unknown' END AS age_group, COUNT(DISTINCT customer_id) AS customer_count FROM customers GROUP BY age_group ORDER BY age_group"
     },
     {
-      "id": "chart_customer_recency",
-      "title": "Customer Recency Segments",
-      "type": "pie",
-      "description": "Segments customers based on when they last made a purchase, identifying active, at-risk, and churned customers. (Based on a reference date of 2025-04-10).",
-      "query_sql": "SELECT CASE WHEN JULIANDAY('2025-04-10') - JULIANDAY(date_of_last_purchase) <= 30 THEN 'Active (0-30 Days)' WHEN JULIANDAY('2025-04-10') - JULIANDAY(date_of_last_purchase) <= 90 THEN 'At Risk (31-90 Days)' WHEN JULIANDAY('2025-04-10') - JULIANDAY(date_of_last_purchase) <= 180 THEN 'Lapsing (91-180 Days)' ELSE 'Churned (181+ Days)' END AS recency_segment, COUNT(customer_id) AS customer_count FROM customers GROUP BY recency_segment ORDER BY 1;"
-    },
-    {
-      "id": "chart_high_value_customer_profile",
-      "title": "Average Order Value: High-Value vs. Low-Value Customers",
+      "id": "chart_aov_by_discount_affinity",
+      "title": "Average Order Value by Discount Affinity",
       "type": "bar",
-      "description": "Compares the average order value (AOV) between the top 25% of customers by LTV (High-Value) and the bottom 25% (Low-Value).",
-      "query_sql": "WITH CustomerTiers AS ( SELECT customer_id, NTILE(4) OVER (ORDER BY CAST(total_spent_ltv AS REAL) DESC) as ltv_quartile FROM customers ) SELECT CASE WHEN T1.ltv_quartile = 1 THEN 'High-Value (Top 25%)' ELSE 'Low-Value (Bottom 25%)' END AS customer_segment, ROUND(AVG(CAST(T2.average_order_value AS REAL)), 2) AS average_order_value FROM CustomerTiers T1 JOIN customers T2 ON T1.customer_id = T2.customer_id WHERE T1.ltv_quartile = 1 OR T1.ltv_quartile = 4 GROUP BY customer_segment ORDER BY average_order_value DESC;",
-      "chart_reasoning": "The user explicitly requested to 'Show this in a bar chart'. This edit transforms the existing table, which displays multiple metrics, into a bar chart focused on a single, impactful comparison. Average Order Value was chosen as the metric for visualization because it's a key differentiator between high-value and low-value customers and is well-suited for comparison in a bar chart format."
+      "description": "Compares the Average Order Value (AOV) for customers with different levels of discount affinity to understand the impact of discounts on spending behavior.",
+      "query_sql": "SELECT discount_affinity, AVG(CAST(average_order_value AS REAL)) AS avg_aov FROM customers GROUP BY discount_affinity ORDER BY avg_aov DESC"
     },
     {
-      "id": "chart_customer_location_distribution",
-      "title": "Customer Distribution by Location",
-      "type": "pie",
-      "description": "This pie chart shows the proportion of customers from each location, illustrating the geographic breakdown of the customer base.",
-      "query_sql": "SELECT location, COUNT(customer_id) AS number_of_customers FROM customers WHERE location IS NOT NULL GROUP BY location ORDER BY number_of_customers DESC;",
-      "chart_reasoning": "The user explicitly requested to 'change plot into a pie chart'. Although the chart was already a pie chart, this edit confirms the user's desire for this visualization type. A pie chart is an effective way to display the proportional distribution of a categorical variable like customer location."
+      "id": "chart_customer_segment_by_location_gender",
+      "title": "Customer Segments by Location and Gender",
+      "type": "table",
+      "description": "A table breaking down the customer base by location and gender, providing a clear view of key demographic segments.",
+      "query_sql": "SELECT location, gender, COUNT(DISTINCT customer_id) as customer_count, ROUND(AVG(CAST(total_spent_ltv AS REAL)), 2) as avg_ltv FROM customers GROUP BY location, gender ORDER BY location, customer_count DESC"
     },
     {
-      "id": "chart_acquisition_source_distribution",
-      "title": "Customer Acquisition Source Distribution",
-      "description": "This chart displays the distribution of customers by their acquisition source, showing which channels are most effective in bringing in new customers.",
-      "type": "pie",
-      "query_sql": "SELECT acquisition_source, COUNT(customer_id) AS number_of_customers FROM customers GROUP BY acquisition_source ORDER BY number_of_customers DESC;"
-    },
-    {
-      "id": "chart-aov-by-gender-90123",
-      "title": "Change to a bar chart",
+      "id": "chart_top_preferred_categories",
+      "title": "Top Preferred Product Categories",
       "type": "bar",
-      "query_sql": "SELECT acquisition_source, COUNT(customer_id) AS number_of_customers FROM customers GROUP BY acquisition_source ORDER BY number_of_customers DESC;"
-    },
-    {
-      "id": "trend_chart_for_quarterly_customer_acquisitions_by",
-      "title": "Trend chart for Quarterly Customer Acquisitions by paid ssocial",
-      "type": "line",
-      "query_sql": "SELECT STRFTIME('%Y', registration_date) || '-Q' || ((CAST(STRFTIME('%m', registration_date) AS INTEGER) - 1) / 3 + 1) AS acquisition_quarter, COUNT(customer_id) AS num_of_customers_acquired FROM customers WHERE acquisition_source = 'Paid Social' GROUP BY acquisition_quarter ORDER BY acquisition_quarter ASC;"
-    },
-    {
-      "id": "trend_for_quarterly_customer_acquisitions_by",
-      "title": "Make into a line chart",
-      "type": "line",
-      "query_sql": "SELECT STRFTIME('%Y-%m', registration_date) AS registration_month, COUNT(customer_id) AS number_of_customers FROM customers GROUP BY registration_month ORDER BY registration_month;"
+      "description": "Identifies the most popular product categories among customers. This query splits comma-separated values to count each category individually.",
+      "query_sql": "WITH RECURSIVE split(s, part, rest) AS ( SELECT customer_id, '', preferred_categories || ',' FROM customers UNION ALL SELECT s, SUBSTR(rest, 1, INSTR(rest, ',') - 1), SUBSTR(rest, INSTR(rest, ',') + 1) FROM split WHERE rest != '' ) SELECT LTRIM(part) as category, COUNT(*) as customer_preference_count FROM split WHERE part != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
     }
   ],
   "insights": [
-    "The customer base is predominantly young (18-24), female, and resides in urban areas, suggesting marketing and product selection should be tailored to this demographic.",
-    "Paid Social and Organic Search are the top acquisition channels by volume, but 'Referral' and 'Email Marketing' bring in customers with a significantly higher Average Lifetime Value (LTV), indicating these channels attract more loyal customers.",
-    "A large portion of the customer base made their last purchase over 90 days ago, presenting an opportunity for targeted re-engagement and reactivation campaigns to prevent churn.",
-    "High-value customers (top 25% by LTV) place more orders and have a higher Average Order Value (AOV) but also exhibit a slightly higher return rate compared to low-value customers.",
-    "There is an opportunity to improve customer activation, as it takes an average of several weeks for a new registrant to make their first purchase. A targeted welcome email series or a first-purchase incentive could shorten this period."
+    "The customer base is heavily dominated by a young (18-24), urban, female demographic, suggesting that marketing and product strategies should be highly tailored to this core audience.",
+    "Paid Social and Organic Search are the primary acquisition channels, creating a dependency. Diversifying by investing in lower-volume but higher-LTV channels like Direct and Referral could mitigate risk and improve profitability.",
+    "A significant portion of customers are 'One-time' purchasers. This represents a major opportunity to increase LTV by implementing targeted retention campaigns, such as post-purchase follow-ups or second-order incentives.",
+    "Customers with 'High' discount affinity do not necessarily have a higher Average Order Value, indicating that discount strategies may be driving transactions but not increasing basket size.",
+    "The data quality requires attention; all fields are stored as TEXT, requiring frequent casting for calculations, and duplicate customer_ids exist in the raw data, necessitating the use of DISTINCT in aggregations.",
+    "There is a notable mismatch between acquisition volume and value. 'Direct' traffic yields the highest LTV customers but is only the 5th largest channel by volume, indicating a significant opportunity to grow brand marketing to attract more of these high-value users."
   ]
 }

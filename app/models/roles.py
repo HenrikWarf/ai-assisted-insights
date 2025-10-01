@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from app.database import get_db_connection
+from app.database.role_db_schema import initialize_role_db
 from services.bigquery_loader import import_tables_to_sqlite
 from services.gemini_service import _generate_json_from_model, generate_chart_insights
 
@@ -64,12 +65,9 @@ class CustomRoleManager:
         if not all([role_name, gcp_project, bq_dataset, bq_tables]):
             return {"ok": False, "error": "Missing required fields"}
         
-        # Create dedicated SQLite DB
+        # Create and initialize the dedicated SQLite DB
         role_db = get_role_db_path(role_name)
-        conn = sqlite3.connect(str(role_db))
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.commit()
-        conn.close()
+        initialize_role_db(role_db)
         
         # Persist minimal config file alongside DB
         config = {
@@ -217,7 +215,7 @@ class CustomRoleManager:
                 "Return JSON with this structure:\n"
                 "{\n"
                 '  "kpis": [\n'
-                '    {"id": "kpi_id", "title": "KPI Name", "description": "What this measures", "formula": "SQL calculation", "table": "source_table"}\n'
+                '    {"id": "kpi_id", "title": "KPI Name", "description": "What this measures", "formula": "A complete SQLite-compatible SELECT expression (e.g., SELECT COUNT(DISTINCT user_id) FROM users)", "table": "source_table"}\n'
                 '  ],\n'
                 '  "charts": [\n'
                 '    {"id": "chart_id", "title": "Chart Title", "type": "line|bar|pie|table", "description": "What this shows", "query_sql": "SELECT ... FROM ..."}\n'
@@ -230,7 +228,7 @@ class CustomRoleManager:
                 "- Time-based trends (if date columns exist)\n"
                 "- Segmentation opportunities\n"
                 "- Performance indicators\n\n"
-                "Generate SQLite-compatible queries. Use actual column names from the schema."
+                "IMPORTANT: The 'formula' for KPIs MUST be a complete and valid SQLite SELECT expression that returns a single value. It should NOT be a fragment like 'SUM(column)'. It MUST be a full query like 'SELECT SUM(column) FROM table'."
             )
             plan = _generate_json_from_model(prompt, json.dumps(data_analysis, ensure_ascii=False, indent=2))
             

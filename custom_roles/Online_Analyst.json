@@ -1,11 +1,11 @@
 {
-  "role_name": "Customer Analyst",
+  "role_name": "Online Analyst",
   "gcp_project": "ml-developer-project-fe07",
   "bq_dataset": "customer_data_retail",
   "bq_tables": [
-    "customers"
+    "web_events"
   ],
   "has_sa": false,
-  "created_at": "2025-09-26T08:28:23.346858",
-  "total_records": 10019
+  "created_at": "2025-09-26T14:02:38.765048",
+  "total_records": 50000
 }

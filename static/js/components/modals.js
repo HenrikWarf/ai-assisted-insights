@@ -299,3 +299,6 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Export functions to global scope
+window.initializeModalListeners = initializeModalListeners;

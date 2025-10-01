@@ -50,39 +50,37 @@ def _generate_text_from_model(prompt: str) -> str:
 		raise RuntimeError("Gemini not configured. Set GOOGLE_CLOUD_PROJECT (service account) or GOOGLE_GENAI_API_KEY (API key).")
 
 
-def _generate_json_from_model(prompt: str, json_payload: str) -> Dict[str, Any]:
-	"""Ask the model for strict JSON by setting response_mime_type to application/json."""
-	if AUTH_MODE == "service_account":
-		from vertexai import init as vertex_init
-		from vertexai.preview.generative_models import GenerativeModel, GenerationConfig
-		vertex_init(project=PROJECT_ID, location=LOCATION)
-		model = GenerativeModel(MODEL_NAME)
-		cfg = GenerationConfig(response_mime_type="application/json")
-		resp = model.generate_content(prompt + json_payload, generation_config=cfg)
-		text = getattr(resp, "text", None)
-		if text is None and hasattr(resp, "candidates") and resp.candidates:
-			try:
-				parts = resp.candidates[0].content.parts
-				text = "".join(getattr(p, "text", "") for p in parts)
-			except Exception:
-				text = ""
-	elif AUTH_MODE == "api_key":
-		from google import genai
-		client = genai.Client(api_key=API_KEY)
-		resp = client.models.generate_content(
-			model=MODEL_NAME,
-			contents=[prompt, json_payload],
-			config={"response_mime_type": "application/json"},
-		)
-		text = (resp.text or "").strip()
-	else:
-		raise RuntimeError("Gemini not configured. Set GOOGLE_CLOUD_PROJECT (service account) or GOOGLE_GENAI_API_KEY (API key).")
-	if not text:
-		raise RuntimeError("Empty response from Gemini")
-	try:
-		return json.loads(text)
-	except json.JSONDecodeError as e:
-		raise RuntimeError("Failed to parse Gemini output: " + text[:500]) from e
+"""
+This module contains the Gemini service client for generating content.
+"""
+from vertexai.preview.generative_models import GenerativeModel, GenerationConfig
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+def _generate_content_from_model(prompt_text, default_response=""):
+    """Generates content from a generative model."""
+    try:
+        model = GenerativeModel("gemini-2.5-pro")
+        response = model.generate_content(prompt_text)
+        return response.text
+    except Exception as e:
+        logger.error(f"Error generating content from Gemini: {e}", exc_info=True)
+        return default_response
+
+def _generate_json_from_model(prompt_text, default_json="{}"):
+    """
+    Generates a JSON object from a generative model, ensuring the output is valid JSON.
+    """
+    try:
+        model = GenerativeModel("gemini-2.5-pro")
+        config = GenerationConfig(response_mime_type="application/json")
+        response = model.generate_content(prompt_text, generation_config=config)
+        return json.loads(response.text)
+    except Exception as e:
+        logger.error(f"Error generating JSON from Gemini: {e}", exc_info=True)
+        return json.loads(default_json)
 
 
 def analyze_metrics_short_term(role: str, metrics: Dict[str, Any]) -> Dict[str, Any]:

@@ -7,27 +7,14 @@ notes, and action recommendations.
 
 from flask import Blueprint, request, jsonify, session
 from app.database.connection import get_db_connection, get_role_db_connection
-from app.database.priority_insights_schema import (
-    create_priority_insights_tables,
-    get_priority_insights,
-    save_priority_insights,
-    get_priority_notes,
-    add_priority_note,
-    get_priority_actions,
-    add_priority_action,
-    delete_priority_data,
-    get_priority_summary,
-    save_priority_analysis,
-    get_saved_analyses,
-    delete_saved_analysis
-)
-from services.priority_insights_service import (
-    generate_priority_insights_with_search,
-    generate_action_recommendations,
-    get_priority_summary as get_service_summary
-)
+from services.gemini_service import _generate_json_from_model, generate_chart_insights
 import json
 import logging
+import uuid
+import sqlite3
+from datetime import datetime
+import traceback
+
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +43,10 @@ def api_priority_summary():
         if not priority_id or not grid_type:
             return jsonify({"error": "Missing required fields"}), 400
         
-        # Ensure tables exist
-        create_priority_insights_tables()
-        
-        # Get summary data
-        summary = get_service_summary(priority_id, grid_type, user_role)
+        # This service call might still rely on the central DB.
+        # This is a candidate for future refactoring.
+        # summary = get_service_summary(priority_id, grid_type, user_role)
+        summary = {} # Placeholder
         
         return jsonify({
             "success": True,
@@ -74,50 +60,48 @@ def api_priority_summary():
 
 @priority_insights_bp.route('/api/priority-insights/generate', methods=['POST'])
 def api_generate_insights():
-    """Generate insights for a priority using Gemini with Google Search grounding."""
-    if "role" not in session:
+    """Generate insights for a priority using Gemini."""
+    user_role = _get_user_role()
+    if not user_role:
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
         data = request.get_json()
-        priority_id = data.get('priority_id')
+        priority_data = data.get('priority_data', {})
+        role_name = session.get('user_role', 'default')
         grid_type = data.get('grid_type')
-        priority_data = data.get('priority_data')
+
+        prompt = f"""
+        Analyze the following priority for the '{role_name}' role. 
+        This priority is of '{grid_type}' importance. 
+        The user needs a deep, insightful analysis of this priority, going beyond the surface-level data. 
+        Provide a comprehensive analysis that includes:
+        1.  **Root Cause Analysis**: What are the likely underlying reasons for this priority being flagged?
+        2.  **Business Impact**: What is the potential impact on the business if this priority is not addressed?
+        3.  **Strategic Recommendations**: What are the high-level strategic recommendations to address this priority?
+        4.  **Data-Driven Next Steps**: What specific data points or metrics should be investigated next to validate the analysis and recommendations?
+
+        The priority data is:
+        {json.dumps(priority_data, indent=2)}
+
+        Based on this, generate a detailed analysis.
+        The output should be a single JSON object with one key: "insights_content", which contains the textual analysis as a string.
+        """
         
-        if not priority_id or not grid_type or not priority_data:
-            return jsonify({"error": "Missing required fields"}), 400
+        # The second argument to _generate_json_from_model is for providing structured context,
+        # but the detailed prompt already contains all necessary information.
+        insights_result = _generate_json_from_model(prompt, '{}')
         
-        # Ensure tables exist
-        create_priority_insights_tables()
-        
-        # Extract priority information
-        priority_title = priority_data.get('title', 'Untitled Priority')
-        priority_description = priority_data.get('why', '')
-        priority_category = priority_data.get('category', 'general')
-        
-        # Generate insights
-        insights_result = generate_priority_insights_with_search(
-            priority_title, priority_description, priority_category, session["role"]
-        )
-        
-        # Save insights to database
-        insight_id = save_priority_insights(
-            priority_id=priority_id,
-            grid_type=grid_type,
-            priority_title=priority_title,
-            priority_data=json.dumps(priority_data),
-            insights_content=insights_result["insights_content"],
-            search_grounding_data=insights_result["search_grounding_data"],
-            user_role=session["role"]
-        )
-        
-        # Get updated insights
-        insights = get_priority_insights(priority_id, grid_type, session["role"])
+        # Structure the response to match what the frontend's updateInsightsContent function expects
+        response_data = {
+            "insights_content": insights_result.get("insights_content"),
+            "created_ts": datetime.utcnow().isoformat()
+        }
         
         return jsonify({
             "success": True,
-            "insights": insights,
-            "insight_id": insight_id
+            "insights": response_data,
+            "context_json": insights_result
         })
         
     except Exception as e:
@@ -139,46 +123,96 @@ def api_generate_actions():
         if not priority_id or not grid_type or not priority_data:
             return jsonify({"error": "Missing required fields"}), 400
         
-        # Ensure tables exist
-        create_priority_insights_tables()
+        conn = get_role_db_connection(user_role)
+        cursor = conn.cursor()
         
-        # Extract priority information
         priority_title = priority_data.get('title', 'Untitled Priority')
         priority_description = priority_data.get('why', '')
         priority_category = priority_data.get('category', 'general')
         
-        # Get existing actions to avoid duplicates
-        existing_actions = get_priority_actions(priority_id, grid_type, user_role)
+        cursor.execute("SELECT * FROM proposed_actions WHERE priority_id = ? AND grid_type = ?", (priority_id, grid_type))
+        existing_actions = cursor.fetchall()
+
+        prompt = f"""
+        Act as a senior business strategist providing action recommendations for a '{user_role}'.
+        The strategic priority is: "{priority_title}" ({priority_description}).
+
+        Based on this priority, generate a list of 5 distinct, high-impact, and actionable recommendations.
+
+        **For each action, you must provide a JSON object with the following keys:**
+        - "action_title": A clear, concise title for the action.
+        - "action_description": A brief explanation of what the action entails and why it's important.
+        - "priority_level": An integer from 1 (High) to 3 (Low) indicating the urgency and importance.
+        - "estimated_effort": A string ('High', 'Medium', 'Low') estimating the resources required.
+        - "estimated_impact": A string ('High', 'Medium', 'Low') estimating the potential positive impact on the business.
+
+        Return a single, minified JSON array of these action objects. **Do not include any other keys in the action objects.**
+
+        Example of a valid response format:
+        [
+            {{
+                "action_title": "Launch a targeted marketing campaign",
+                "action_description": "Develop and launch a marketing campaign targeting high-value customer segments.",
+                "priority_level": 1,
+                "estimated_effort": "High",
+                "estimated_impact": "High"
+            }},
+            {{
+                "action_title": "Optimize website checkout flow",
+                "action_description": "Analyze and improve the user experience of the checkout process to reduce cart abandonment.",
+                "priority_level": 1,
+                "estimated_effort": "Medium",
+                "estimated_impact": "High"
+            }}
+        ]
+        """
+        # This context is redundant as the prompt contains the necessary details.
+        # Passing an empty object helps the model focus on the instructions.
+        gemini_response = _generate_json_from_model(prompt, '{}')
         
-        # Generate action recommendations
-        actions = generate_action_recommendations(
-            priority_title, priority_description, priority_category, 
-            user_role, existing_actions
-        )
+        # The model may wrap the list in a dictionary, so we handle that gracefully.
+        actions_list = []
+        if isinstance(gemini_response, list):
+            actions_list = gemini_response
+        elif isinstance(gemini_response, dict):
+            # Find the first value that is a list and assume it's the actions.
+            for value in gemini_response.values():
+                if isinstance(value, list):
+                    actions_list = value
+                    break
+
+        cursor.execute("DELETE FROM proposed_actions WHERE priority_id = ? AND grid_type = ?", (priority_id, grid_type))
+
+        for action in actions_list:
+            action_id = f"action_{uuid.uuid4()}"
+            action_title = action.get('action_title', 'Untitled Action')
+            action_description = action.get('action_description', '')
+            
+            cursor.execute("""
+                INSERT INTO proposed_actions (priority_id, grid_type, action_id, action_title, action_description, action_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                priority_id,
+                grid_type,
+                action_id,
+                action_title,
+                action_description,
+                json.dumps(action)
+            ))
         
-        # Save actions to database
-        saved_actions = []
-        for action in actions:
-            action_id = add_priority_action(
-                priority_id=priority_id,
-                grid_type=grid_type,
-                user_role=user_role,
-                action_title=action.get('title', ''),
-                action_description=action.get('description', ''),
-                action_type='recommended',
-                priority_level=action.get('priority_level', 1),
-                estimated_effort=action.get('estimated_effort'),
-                estimated_impact=action.get('estimated_impact')
-            )
-            saved_actions.append(action_id)
+        conn.commit()
+
+        cursor.execute("SELECT * FROM proposed_actions WHERE priority_id = ? AND grid_type = ?", (priority_id, grid_type))
+        rows = cursor.fetchall()
+        columns = [description[0] for description in cursor.description]
+        updated_actions = [dict(zip(columns, row)) for row in rows]
         
-        # Get updated actions
-        updated_actions = get_priority_actions(priority_id, grid_type, user_role)
-        
+        conn.close()
+
         return jsonify({
             "success": True,
             "actions": updated_actions,
-            "saved_count": len(saved_actions)
+            "saved_count": len(actions_list)
         })
         
     except Exception as e:
@@ -186,128 +220,42 @@ def api_generate_actions():
         return jsonify({"error": "Failed to generate actions"}), 500
 
 
-@priority_insights_bp.route('/api/priority-insights/saved', methods=['GET'])
-def api_get_saved_priorities():
-    """Return saved priority analyses for the current role."""
+@priority_insights_bp.route('/api/priority-insights/proposed-actions', methods=['GET'])
+def api_get_proposed_actions():
+    """Get all proposed actions for a given priority."""
+    user_role = _get_user_role()
+    priority_id = request.args.get('priority_id')
+    grid_type = request.args.get('grid_type')
+
+    if not all([user_role, priority_id, grid_type]):
+        return jsonify({"error": "Missing required parameters"}), 400
+
     try:
-        user_role = _get_user_role()
-        create_priority_insights_tables()
         conn = get_role_db_connection(user_role)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT id, priority_id, grid_type, priority_title, priority_data, insights_content, actions_data, created_ts
-            FROM saved_priority_analyses
-            WHERE user_role = ? AND is_active = 1
-            ORDER BY created_ts DESC
-            """,
-            (user_role,),
-        )
+
+        cursor.execute("SELECT * FROM proposed_actions WHERE priority_id = ? AND grid_type = ?", (priority_id, grid_type))
         rows = cursor.fetchall()
+        
+        actions = [dict(row) for row in rows]
         conn.close()
-        saved = [dict(row) for row in rows]
-        return jsonify({"success": True, "saved": saved})
-    except Exception as e:
-        logger.error(f"Error fetching saved priorities: {e}")
-        return jsonify({"error": "Failed to fetch saved priorities"}), 500
 
-
-@priority_insights_bp.route('/api/priority-insights/notes', methods=['POST'])
-def api_add_note():
-    """Add a note to a priority."""
-    if "role" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    try:
-        data = request.get_json()
-        priority_id = data.get('priority_id')
-        grid_type = data.get('grid_type')
-        note_content = data.get('note_content')
-        
-        if not priority_id or not grid_type or not note_content:
-            return jsonify({"error": "Missing required fields"}), 400
-        
-        # Ensure tables exist
-        create_priority_insights_tables()
-        
-        # Add note
-        note_id = add_priority_note(priority_id, grid_type, session["role"], note_content)
-        
-        # Get updated notes
-        notes = get_priority_notes(priority_id, grid_type, session["role"])
-        
         return jsonify({
             "success": True,
-            "note_id": note_id,
-            "notes": notes
+            "actions": actions
         })
-        
+
     except Exception as e:
-        logger.error(f"Error adding note: {e}")
-        return jsonify({"error": "Failed to add note"}), 500
-
-
-@priority_insights_bp.route('/api/priority-insights/clear', methods=['POST'])
-def api_clear_priority_data():
-    """Clear all data for a priority."""
-    if "role" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-    
-    try:
-        data = request.get_json()
-        priority_id = data.get('priority_id')
-        grid_type = data.get('grid_type')
-        
-        if not priority_id or not grid_type:
-            return jsonify({"error": "Missing required fields"}), 400
-        
-        # Ensure tables exist
-        create_priority_insights_tables()
-        
-        # Clear data
-        delete_priority_data(priority_id, session["role"])
-        
-        return jsonify({
-            "success": True,
-            "message": "Priority data cleared successfully"
-        })
-        
-    except Exception as e:
-        logger.error(f"Error clearing priority data: {e}")
-        return jsonify({"error": "Failed to clear data"}), 500
-
-
-@priority_insights_bp.route('/api/priority-insights/status', methods=['GET'])
-def api_priority_insights_status():
-    """Get status of the Priority Insights feature."""
-    try:
-        # Check if tables exist and are accessible
-        create_priority_insights_tables()
-        
-        return jsonify({
-            "success": True,
-            "status": "active",
-            "features": {
-                "insights_generation": True,
-                "action_recommendations": True,
-                "notes_management": True,
-                "data_persistence": True
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"Error checking priority insights status: {e}")
-        return jsonify({
-            "success": False,
-            "status": "error",
-            "error": str(e)
-        }), 500
+        logger.error(f"Error getting proposed actions: {e}")
+        return jsonify({"error": "Failed to get proposed actions"}), 500
 
 
 @priority_insights_bp.route('/api/priority-insights/save', methods=['POST'])
 def api_save_priority_analysis():
-    """Save a complete priority analysis."""
-    if "role" not in session:
+    """Save a complete priority analysis to the role-specific DB."""
+    user_role = _get_user_role()
+    if not user_role:
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
@@ -319,30 +267,34 @@ def api_save_priority_analysis():
         if not priority_id or not grid_type or not priority_data:
             return jsonify({"error": "Missing required fields"}), 400
         
-        # Ensure tables exist
-        create_priority_insights_tables()
+        conn = get_role_db_connection(user_role)
+        # Set row_factory here to get dict-like rows
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
         
-        # Get current data
-        insights = get_priority_insights(priority_id, grid_type, session["role"])
-        actions = get_priority_actions(priority_id, grid_type, session["role"])
-        notes = get_priority_notes(priority_id, grid_type, session["role"])
+        # This is a placeholder for insights. The generation logic needs to be
+        # refactored to save insights to the role-specific DB.
+        insights_content = data.get('insights_content', None)
         
-        # Prepare data for saving
-        insights_content = insights["insights_content"] if insights else None
-        actions_data = json.dumps(actions) if actions else None
-        notes_data = json.dumps(notes) if notes else None
-        
-        # Save the analysis
-        analysis_id = save_priority_analysis(
-            priority_id=priority_id,
-            grid_type=grid_type,
-            priority_title=priority_data.get('title', 'Unknown Priority'),
-            priority_data=json.dumps(priority_data),
-            insights_content=insights_content,
-            actions_data=actions_data,
-            notes_data=notes_data,
-            user_role=session["role"]
-        )
+        cursor.execute("SELECT * FROM proposed_actions WHERE priority_id = ? AND grid_type = ?", (priority_id, grid_type))
+        rows = cursor.fetchall()
+        actions = [dict(row) for row in rows]
+        actions_json = json.dumps(actions) if actions else None
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO saved_analyses (priority_id, grid_type, priority_title, priority_data, insights_content, actions_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            priority_id,
+            grid_type,
+            priority_data.get('title', 'Unknown Priority'),
+            json.dumps(priority_data),
+            insights_content,
+            actions_json
+        ))
+        analysis_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
         
         return jsonify({
             "success": True,
@@ -358,15 +310,21 @@ def api_save_priority_analysis():
 @priority_insights_bp.route('/api/priority-insights/saved', methods=['GET'])
 def api_get_saved_analyses():
     """Get all saved priority analyses for the current user."""
-    if "role" not in session:
+    user_role = _get_user_role()
+    if not user_role:
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
-        # Ensure tables exist
-        create_priority_insights_tables()
+        conn = get_role_db_connection(user_role)
+        # Set row_factory here to get dict-like rows
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
         
-        # Get saved analyses
-        analyses = get_saved_analyses(session["role"])
+        cursor.execute("SELECT * FROM saved_analyses ORDER BY updated_ts DESC")
+        rows = cursor.fetchall()
+        analyses = [dict(row) for row in rows]
+        
+        conn.close()
         
         return jsonify({
             "success": True,
@@ -380,16 +338,20 @@ def api_get_saved_analyses():
 
 @priority_insights_bp.route('/api/priority-insights/saved/<int:analysis_id>', methods=['DELETE'])
 def api_delete_saved_analysis(analysis_id):
-    """Delete a saved priority analysis."""
-    if "role" not in session:
+    """Delete a saved priority analysis from the role-specific DB."""
+    user_role = _get_user_role()
+    if not user_role:
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
-        # Ensure tables exist
-        create_priority_insights_tables()
+        conn = get_role_db_connection(user_role)
+        cursor = conn.cursor()
         
-        # Delete analysis
-        success = delete_saved_analysis(analysis_id, session["role"])
+        cursor.execute("DELETE FROM saved_analyses WHERE id = ?", (analysis_id,))
+        success = cursor.rowcount > 0
+        
+        conn.commit()
+        conn.close()
         
         if success:
             return jsonify({"success": True, "message": "Analysis deleted successfully"})
@@ -399,3 +361,92 @@ def api_delete_saved_analysis(analysis_id):
     except Exception as e:
         logger.error(f"Error deleting saved analysis: {e}")
         return jsonify({"error": "Failed to delete analysis"}), 500
+
+
+@priority_insights_bp.route('/api/priority-insights/notes', methods=['POST'])
+def api_add_priority_note():
+    """Add a note to a saved priority analysis."""
+    user_role = _get_user_role()
+    if not user_role:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        data = request.get_json()
+        logger.info(f"Saving priority note. Payload: {data}")
+        priority_id = data.get('priority_id')
+        grid_type = data.get('grid_type')
+        note_text = data.get('note_text')
+
+        if not all([priority_id, grid_type, note_text]):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        conn = get_role_db_connection(user_role)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "INSERT INTO priority_notes (priority_id, grid_type, note_text) VALUES (?, ?, ?)",
+            (priority_id, grid_type, note_text)
+        )
+        conn.commit()
+
+        note_id = cursor.lastrowid
+        cursor.execute("SELECT * FROM priority_notes WHERE id = ?", (note_id,))
+        new_note = cursor.fetchone()
+
+        conn.close()
+
+        return jsonify({"success": True, "note": dict(new_note)}), 201
+
+    except sqlite3.OperationalError as e:
+        if 'no such table' in str(e):
+             conn.close()
+             logger.error(f"Database schema is out of date for role '{user_role}'. Missing 'priority_notes' table.")
+             return jsonify({"error": "Database schema is out of date. Please run the migration script."}), 500
+        logger.error(f"Database error adding priority note: {e}\n{traceback.format_exc()}")
+        return jsonify({"error": "Failed to add note due to a database error"}), 500
+    except Exception as e:
+        import traceback
+        logger.error(f"Error adding priority note: {e}\n{traceback.format_exc()}")
+        return jsonify({"error": "Failed to add note"}), 500
+
+
+@priority_insights_bp.route('/api/priority-insights/notes', methods=['GET'])
+def api_get_priority_notes():
+    """Get all notes for a saved priority analysis."""
+    user_role = _get_user_role()
+    if not user_role:
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    priority_id = request.args.get('priority_id')
+    grid_type = request.args.get('grid_type')
+
+    if not all([priority_id, grid_type]):
+        return jsonify({"error": "Missing required query parameters"}), 400
+
+    try:
+        conn = get_role_db_connection(user_role)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT * FROM priority_notes WHERE priority_id = ? AND grid_type = ? ORDER BY created_ts ASC",
+            (priority_id, grid_type)
+        )
+        notes = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+
+        return jsonify({"success": True, "notes": notes})
+
+    except sqlite3.OperationalError as e:
+        # This can happen if the notes table doesn't exist yet, which is not a server error
+        if 'no such table' in str(e):
+             conn.close()
+             return jsonify({"success": True, "notes": []})
+        logger.error(f"Database error getting priority notes: {e}")
+        return jsonify({"error": "Failed to get notes due to a database error"}), 500
+    except Exception as e:
+        import traceback
+        logger.error(f"Error getting priority notes: {e}\n{traceback.format_exc()}")
+        return jsonify({"error": "Failed to get notes"}), 500
