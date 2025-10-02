@@ -431,11 +431,7 @@ async function fetchMetrics() {
                 longSummaryEl.style.display = '';
               }
               
-              // Add visual indicator that results are available
-              const toggle = document.getElementById('priorities-toggle');
-              if (toggle && (shortPriorities.length > 0 || longPriorities.length > 0)) {
-                toggle.classList.add('has-results');
-              }
+              // Results available - metadata will show count automatically
             } else {
               // Legacy structure - render as short-term
               const priorities = Array.isArray(analysis.prioritized_issues) ? analysis.prioritized_issues : [];
@@ -704,6 +700,11 @@ function renderPriorityCards(priorities, gridType = 'short-term') {
 function clearPriorityCards() { 
   renderPriorityCards([], 'short-term'); 
   renderPriorityCards([], 'long-term'); 
+  
+  // Update priorities metadata after clearing
+  if (window.accordionMetadata) {
+    window.accordionMetadata.updatePrioritiesMetadata();
+  }
 }
 
 // Add event listener for Explore & Act buttons
@@ -807,6 +808,11 @@ async function runGeminiAnalysis() {
           if (body) renderSummaryInto(body, longTermAnalysis.summary || '');
           longTermSummaryEl.style.display='';
         }
+      }
+      
+      // Update priorities metadata after analysis
+      if (window.accordionMetadata) {
+        await window.accordionMetadata.updatePrioritiesMetadata();
       }
     } else {
       // Handle error case
@@ -1444,8 +1450,11 @@ async function deleteCustomChart(chartId) {
     return;
   }
   
+  // Remove 'chart_' prefix if present for API call
+  const apiChartId = chartId.startsWith('chart_') ? chartId.substring(6) : chartId;
+  
   // Show confirmation dialog
-  const chartTitle = chartId.replace('chart_', '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const chartTitle = apiChartId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const confirmed = confirm(`Are you sure you want to delete the "${chartTitle}" chart?\n\nThis action cannot be undone.`);
   
   if (!confirmed) {
@@ -1458,7 +1467,7 @@ async function deleteCustomChart(chartId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         role_name: customRole,
-        chart_id: chartId
+        chart_id: apiChartId
       })
     });
     
@@ -1629,6 +1638,11 @@ async function loadSavedAnalyses() {
             const data = await response.json();
             console.log('Saved workspaces data:', data);
             renderSavedAnalyses(data.saved || data.analyses || []);
+            
+            // Update workspace metadata
+            if (window.accordionMetadata) {
+                await window.accordionMetadata.updateWorkspaceMetadata();
+            }
         } else {
             console.error('Failed to load saved workspaces, status:', response.status);
             const errorText = await response.text();
@@ -1924,6 +1938,11 @@ async function deleteSavedAnalysis(analysisId) {
         if (response.ok) {
             // Reload saved analyses
             await loadSavedAnalyses();
+            
+            // Update workspace metadata
+            if (window.accordionMetadata) {
+                await window.accordionMetadata.updateWorkspaceMetadata();
+            }
         } else {
             throw new Error('Failed to delete analysis');
         }
@@ -1944,6 +1963,11 @@ async function loadSavedActions() {
             const data = await response.json();
             console.log('Saved actions data:', data);
             renderSavedActions(data.actions_by_priority);
+            
+            // Update actions metadata
+            if (window.accordionMetadata) {
+                await window.accordionMetadata.updateActionsMetadata();
+            }
         } else {
             console.error('Failed to load saved actions, status:', response.status);
             const errorText = await response.text();
@@ -2136,6 +2160,11 @@ async function deleteSavedAction(actionId) {
         
         if (response.ok) {
             await loadSavedActions();
+            
+            // Update actions metadata
+            if (window.accordionMetadata) {
+                await window.accordionMetadata.updateActionsMetadata();
+            }
         } else {
             throw new Error('Failed to delete action');
         }

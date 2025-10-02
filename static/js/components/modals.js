@@ -152,6 +152,9 @@ async function deleteCustomChart(chartId) {
       throw new Error('No custom role name found');
     }
     
+    // Remove 'chart_' prefix if present for API call
+    const apiChartId = chartId.startsWith('chart_') ? chartId.substring(6) : chartId;
+    
     const response = await fetch('/api/custom_role/delete_chart', {
       method: 'POST',
       headers: {
@@ -159,7 +162,7 @@ async function deleteCustomChart(chartId) {
       },
       body: JSON.stringify({
         role_name: roleName,
-        chart_id: chartId
+        chart_id: apiChartId
       })
     });
     

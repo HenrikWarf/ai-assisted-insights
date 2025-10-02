@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Crazy Fashion Corp - Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20251001-fix7" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -51,18 +51,34 @@
       <!-- Priorities Section -->
       <section class="panel" id="priorities-panel">
         <div class="panel-header">
-          <h2>
+          <div class="accordion-header-content">
             <button class="accordion-toggle" id="priorities-toggle" aria-expanded="false" aria-controls="priorities-content">
               <span class="accordion-icon">▶</span>
-              Your proposed priorities
+              <div class="accordion-title-row">
+                <h2>Your proposed priorities</h2>
+                <span class="status-dot empty" id="priorities-status-dot"></span>
+              </div>
             </button>
-          </h2>
-          <div class="panel-actions">
-            <button class="btn btn-primary" id="analyze">Analyze</button>
-            <button class="btn btn-secondary" id="clear-priorities">Clear</button>
+            <div class="accordion-metadata" id="priorities-metadata">
+              <span class="meta-badge primary">
+                <span class="icon">📊</span>
+                <span id="priority-count">0 priorities</span>
+              </span>
+              <div class="category-tags" id="priority-categories"></div>
+              <span class="time-badge">
+                <span class="icon">🕐</span>
+                <span id="last-analyzed-mini">No analysis yet</span>
+              </span>
+            </div>
           </div>
         </div>
         <div class="panel-content accordion-content" id="priorities-content" style="display: none;">
+          <!-- Analysis Actions -->
+          <div class="panel-actions" style="margin-bottom: 16px;">
+            <button class="btn btn-primary" id="analyze">Analyze</button>
+            <button class="btn btn-secondary" id="clear-priorities">Clear</button>
+          </div>
+          
           <div class="analysis-summary" id="analysis-summary"></div>
           <div class="priorities-grid">
             <div class="priority-group">
@@ -141,6 +157,7 @@
     <script src="/static/js/utils/ui.js?v=2"></script>
     <script src="/static/js/components/kpi.js?v=2"></script>
     <script src="/static/js/components/metrics.js?v=2"></script>
+    <script src="/static/js/components/accordion-metadata.js?v=2"></script>
     <script src="/static/js/components/modals.js?v=2"></script>
     <script src="/static/js/components/query-generator.js?v=2"></script>
     <script src="/static/js/components/communication-generator.js?v=2" 

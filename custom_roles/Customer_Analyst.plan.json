@@ -85,6 +85,12 @@
       "type": "bar",
       "description": "Identifies the most popular product categories among customers. This query splits comma-separated values to count each category individually.",
       "query_sql": "WITH RECURSIVE split(s, part, rest) AS ( SELECT customer_id, '', preferred_categories || ',' FROM customers UNION ALL SELECT s, SUBSTR(rest, 1, INSTR(rest, ',') - 1), SUBSTR(rest, INSTR(rest, ',') + 1) FROM split WHERE rest != '' ) SELECT LTRIM(part) as category, COUNT(*) as customer_preference_count FROM split WHERE part != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+    },
+    {
+      "id": "aov_by_discount_affinity",
+      "title": "Make this into a pie chart",
+      "type": "pie",
+      "query_sql": "SELECT acquisition_source, COUNT(customer_id) AS number_of_customers FROM customers GROUP BY acquisition_source;"
     }
   ],
   "insights": [

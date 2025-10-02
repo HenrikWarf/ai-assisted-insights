@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Crazy Fashion Corp - Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20251001-fix7" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   </head>
@@ -44,19 +44,35 @@
       <!-- Priorities Section -->
       <section class="panel" id="priorities-panel">
         <div class="panel-header">
-          <h2>
+          <div class="accordion-header-content">
             <button class="accordion-toggle" id="priorities-toggle" aria-expanded="false" aria-controls="priorities-content">
               <span class="accordion-icon">▶</span>
-              Your proposed priorities
+              <div class="accordion-title-row">
+                <h2>Your proposed priorities</h2>
+                <span class="status-dot empty" id="priorities-status-dot"></span>
+              </div>
             </button>
-          </h2>
-          <div class="actions">
-            <button class="primary" id="analyze">Analyze with Gemini</button>
-            <button class="secondary" id="clear-priorities">Clear Results</button>
+            <div class="accordion-metadata" id="priorities-metadata">
+              <span class="meta-badge primary">
+                <span class="icon">📊</span>
+                <span id="priority-count">0 priorities</span>
+              </span>
+              <div class="category-tags" id="priority-categories"></div>
+              <span class="time-badge">
+                <span class="icon">🕐</span>
+                <span id="last-analyzed-mini">No analysis yet</span>
+              </span>
+            </div>
           </div>
         </div>
         
         <div class="accordion-content" id="priorities-content" style="display: none;">
+        
+        <!-- Analysis Actions -->
+        <div class="actions" style="margin-bottom: 16px; display: flex; gap: 8px;">
+          <button class="primary" id="analyze">Analyze with Gemini</button>
+          <button class="secondary" id="clear-priorities">Clear Results</button>
+        </div>
         
         <!-- Short Term Priorities -->
         <div class="priority-section">
@@ -97,12 +113,32 @@
       <!-- Saved Analyses Section -->
       <section class="panel" id="saved-analyses-panel">
         <div class="panel-header">
-          <h2>
+          <div class="accordion-header-content">
             <button class="accordion-toggle" id="saved-analyses-toggle" aria-expanded="false" aria-controls="saved-analyses-content">
               <span class="accordion-icon">▶</span>
-              📚 Workspace
+              <div class="accordion-title-row">
+                <h2>📚 Workspace</h2>
+              </div>
             </button>
-          </h2>
+            <div class="accordion-metadata" id="workspace-metadata">
+              <span class="meta-badge primary">
+                <span class="icon">📁</span>
+                <span id="workspace-count">0 saved</span>
+              </span>
+              <span class="meta-badge success">
+                <span class="icon">💡</span>
+                <span id="insights-count">0 with insights</span>
+              </span>
+              <span class="meta-badge info">
+                <span class="icon">📝</span>
+                <span id="workspace-notes-total">0 notes</span>
+              </span>
+              <span class="time-badge">
+                <span class="icon">🕐</span>
+                <span id="workspace-last-activity">Never updated</span>
+              </span>
+            </div>
+          </div>
         </div>
         <div class="panel-content" id="saved-analyses-content" style="display: none;">
           <div class="saved-analyses-container">
@@ -121,12 +157,31 @@
       <!-- Saved Actions Section -->
       <section class="panel" id="saved-actions-panel">
         <div class="panel-header">
-          <h2>
+          <div class="accordion-header-content">
             <button class="accordion-toggle" id="saved-actions-toggle" aria-expanded="false" aria-controls="saved-actions-content">
               <span class="accordion-icon">▶</span>
-              🎯 Saved Actions
+              <div class="accordion-title-row">
+                <h2>🎯 Saved Actions</h2>
+              </div>
             </button>
-          </h2>
+            <div class="accordion-metadata" id="actions-metadata">
+              <span class="meta-badge primary">
+                <span class="icon">📊</span>
+                <span id="total-actions-count">0 actions</span>
+              </span>
+              <span class="meta-badge warning" id="urgent-actions-badge" style="display: none;">
+                <span class="icon">⚡</span>
+                <span id="urgent-actions">0 urgent</span>
+              </span>
+              <span class="meta-badge info" id="status-breakdown-text">
+                <span id="status-text-content">0 pending · 0 in-progress · 0 done</span>
+              </span>
+              <span class="time-badge">
+                <span class="icon">🕐</span>
+                <span id="actions-last-update">Never updated</span>
+              </span>
+            </div>
+          </div>
         </div>
         <div class="panel-content" id="saved-actions-content" style="display: none;">
           <div class="saved-actions-container">
@@ -215,6 +270,7 @@
     <script src="/static/visualizations.js"></script>
     <script src="/static/js/components/kpi.js"></script>
     <script src="/static/js/components/metrics.js"></script>
+    <script src="/static/js/components/accordion-metadata.js"></script>
     <script src="/static/js/components/priority-explore-modal.js"></script>
     <script src="/static/js/components/explore-action-modal.js"></script>
     <script src="/static/js/components/query-generator.js"></script>

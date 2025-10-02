@@ -1,0 +1,90 @@
+{
+  "kpis": [
+    {
+      "id": "kpi_total_sales_this_week_01",
+      "title": "Total Sales (This Week)",
+      "description": "The total sales revenue generated in the most recent week.",
+      "formula": "SELECT SUM(\"This_Week_This_Year_Sales\") FROM pa_sales",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_yoy_sales_growth_02",
+      "title": "YoY Sales Growth %",
+      "description": "The percentage change in total sales this week compared to the same week last year.",
+      "formula": "SELECT ((SUM(\"This_Week_This_Year_Sales\") - SUM(\"Same_Week_Last_Year_Sales\")) * 100.0) / SUM(\"Same_Week_Last_Year_Sales\") FROM pa_sales WHERE \"Same_Week_Last_Year_Sales\" > 0",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_wow_sales_change_03",
+      "title": "WoW Sales Change %",
+      "description": "The percentage change in sales revenue this week compared to last week.",
+      "formula": "SELECT ((SUM(\"This_Week_This_Year_Sales\") - SUM(\"Last_Week_This_Year_Sales\")) * 100.0) / SUM(\"Last_Week_This_Year_Sales\") FROM pa_sales WHERE \"Last_Week_This_Year_Sales\" > 0",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_total_volume_this_week_04",
+      "title": "Total Volume in Cases (This Week)",
+      "description": "The total volume of products sold in cases during the most recent week.",
+      "formula": "SELECT SUM(\"This_Week_This_Year_Volume_Cases\") FROM pa_sales",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_active_stores_05",
+      "title": "Number of Active Stores",
+      "description": "The count of unique stores (HFBs) with sales data in the reporting period.",
+      "formula": "SELECT COUNT(DISTINCT \"HFB_Name\") FROM pa_sales WHERE \"This_Week_This_Year_Sales\" > 0",
+      "table": "pa_sales"
+    }
+  ],
+  "charts": [
+    {
+      "id": "chart_top_10_stores_by_sales_01",
+      "title": "Top 10 Stores by Sales (This Week)",
+      "type": "bar",
+      "description": "Displays the top 10 performing stores (HFBs) based on their total sales revenue for the current week.",
+      "query_sql": "SELECT \"HFB_Name\" as Store, SUM(\"This_Week_This_Year_Sales\") as \"Current Week Sales\" FROM pa_sales GROUP BY \"HFB_Name\" ORDER BY \"Current Week Sales\" DESC LIMIT 10"
+    },
+    {
+      "id": "chart_top_10_products_by_sales_02",
+      "title": "Top 10 Product Areas by Sales (This Week)",
+      "type": "bar",
+      "description": "Shows the top 10 product areas generating the most sales revenue in the current week.",
+      "query_sql": "SELECT \"Product_Area_Name\" as \"Product Area\", SUM(\"This_Week_This_Year_Sales\") as \"Current Week Sales\" FROM pa_sales GROUP BY \"Product_Area_Name\" ORDER BY \"Current Week Sales\" DESC LIMIT 10"
+    },
+    {
+      "id": "chart_sales_performance_comparison_03",
+      "title": "Sales Performance Comparison",
+      "type": "bar",
+      "description": "A comparison of total sales from this week, last week, and the same week last year.",
+      "query_sql": "SELECT 'This Week' as Period, SUM(\"This_Week_This_Year_Sales\") as Sales FROM pa_sales UNION ALL SELECT 'Last Week' as Period, SUM(\"Last_Week_This_Year_Sales\") as Sales FROM pa_sales UNION ALL SELECT 'Same Week Last Year' as Period, SUM(\"Same_Week_Last_Year_Sales\") as Sales FROM pa_sales"
+    },
+    {
+      "id": "chart_sales_distribution_by_product_04",
+      "title": "Sales Distribution by Product Area",
+      "type": "pie",
+      "description": "Visualizes the proportion of total sales contributed by each product area for the current week.",
+      "query_sql": "SELECT \"Product_Area_Name\" as \"Product Area\", SUM(\"This_Week_This_Year_Sales\") as \"Total Sales\" FROM pa_sales GROUP BY \"Product_Area_Name\" HAVING SUM(\"This_Week_This_Year_Sales\") > 0 ORDER BY \"Total Sales\" DESC"
+    },
+    {
+      "id": "chart_yoy_growth_by_product_area_05",
+      "title": "YoY Growth by Product Area",
+      "type": "table",
+      "description": "Table showing the Year-over-Year (YoY) sales and volume growth percentages for each product area.",
+      "query_sql": "SELECT \"Product_Area_Name\" as \"Product Area\", CAST(AVG(\"Sales_YoY_Growth\") * 100 AS REAL) as \"Avg YoY Sales Growth %\", CAST(AVG(\"Volume_YoY_Growth\") * 100 AS REAL) as \"Avg YoY Volume Growth %\" FROM pa_sales GROUP BY \"Product_Area_Name\" ORDER BY \"Avg YoY Sales Growth %\" DESC"
+    },
+    {
+      "id": "chart_detailed_store_report_06",
+      "title": "Detailed Store Sales Report",
+      "type": "table",
+      "description": "A detailed report showing sales figures for this week, last week, and same week last year, along with WoW and YoY growth for each store.",
+      "query_sql": "SELECT \"HFB_Name\" as Store, SUM(\"This_Week_This_Year_Sales\") as \"This Week Sales\", SUM(\"Last_Week_This_Year_Sales\") as \"Last Week Sales\", SUM(\"Same_Week_Last_Year_Sales\") as \"Same Week Last Year Sales\", CAST(((SUM(\"This_Week_This_Year_Sales\") - SUM(\"Last_Week_This_Year_Sales\")) * 100.0 / SUM(\"Last_Week_This_Year_Sales\")) AS REAL) as \"WoW Growth %\", CAST(AVG(\"Sales_YoY_Growth\") * 100 AS REAL) as \"YoY Growth %\" FROM pa_sales GROUP BY \"HFB_Name\" ORDER BY \"This Week Sales\" DESC"
+    }
+  ],
+  "insights": [
+    "Overall sales show a positive or negative trend compared to last week and the same week last year, indicating market expansion or contraction.",
+    "A small number of stores (HFBs) are responsible for a large percentage of total sales, suggesting a concentration of performance.",
+    "Certain product areas are outperforming others significantly, highlighting key drivers of sales revenue.",
+    "There is a discrepancy between sales growth and volume growth in some product areas, which could indicate changes in pricing strategy or product mix.",
+    "Stores with the highest current sales rank may not necessarily have the highest year-over-year growth, pointing to emerging or declining store performance."
+  ]
+}

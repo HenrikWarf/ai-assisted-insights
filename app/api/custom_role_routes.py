@@ -5,9 +5,7 @@ This module contains Flask Blueprint for custom role management API endpoints.
 """
 
 from flask import Blueprint, request, jsonify, session
-from app.models import CustomRoleManager, get_role_db_path
-from app.database import get_db_connection, infer_column_type
-from services.gemini_service import _generate_json_from_model, generate_chart_insights
+from app.models import CustomRoleManager
 import sqlite3
 import json
 import logging
@@ -80,24 +78,23 @@ def api_custom_role_schema():
         return jsonify({"ok": False, "error": "Missing role_name"}), 400
     
     # Get the list of original BQ tables from the role's config file
-    APP_ROOT = Path(__file__).parent.parent.parent.resolve()
-    CUSTOM_DIR = APP_ROOT / "custom_roles"
-    config_path = CUSTOM_DIR / f"{role_name.replace(' ','_')}.json"
-
-    if not config_path.exists():
+    manager = CustomRoleManager()
+    config = manager.get_role_config(role_name)
+    if not config:
         return jsonify({"ok": False, "error": "Role configuration not found"}), 404
         
-    try:
-        config = json.loads(config_path.read_text())
-        tables = config.get("bq_tables", [])
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Failed to read role configuration: {str(e)}"}), 500
+    tables = config.get("bq_tables", [])
 
-    role_db = get_role_db_path(role_name)
+    role_db = manager.get_role_db_path(role_name)
     if not role_db.exists():
         return jsonify({"ok": False, "error": "Role DB not found"}), 404
     
     try:
+        import sqlite3
+        import json
+        from app.database import infer_column_type
+        from pathlib import Path
+
         conn = sqlite3.connect(str(role_db))
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
@@ -145,11 +142,20 @@ def api_custom_role_metrics():
     if not role_name:
         return jsonify({"error": "Missing role_name"}), 400
     
-    role_db = get_role_db_path(role_name)
+    manager = CustomRoleManager()
+    role_db = manager.get_role_db_path(role_name)
     if not role_db.exists():
         return jsonify({"error": "Role DB not found"}), 404
     
     # Build a lightweight metrics dict based on plan-generated SQL if present; otherwise row counts only
+    import sqlite3
+    import json
+    import logging
+    from pathlib import Path
+    from services.gemini_service import _generate_json_from_model, generate_chart_insights
+    import re
+    from datetime import datetime, timedelta
+
     APP_ROOT = Path(__file__).parent.parent.parent.resolve()
     CUSTOM_DIR = APP_ROOT / "custom_roles"
     plan_path = CUSTOM_DIR / f"{role_name.replace(' ','_')}.plan.json"
@@ -167,7 +173,6 @@ def api_custom_role_metrics():
             kpis = plan.get("kpis") or []
             
             # Helper functions for change calculation
-            import re
             def extract_table(sql: str) -> str:
                 m = re.search(r"FROM\s+`?\"?([a-zA-Z0-9_]+)`?\"?", sql, re.IGNORECASE)
                 return m.group(1) if m else ""
@@ -203,7 +208,6 @@ def api_custom_role_metrics():
                 else:
                     return re.sub(r"\bFROM\s+`?\"?" + re.escape(table) + r"`?\"?", lambda m: m.group(0) + f" WHERE {clause}", s, count=1, flags=re.IGNORECASE)
 
-            from datetime import datetime, timedelta
             end_curr = datetime.utcnow().date()
             start_curr = end_curr - timedelta(days=30)
             end_prev = start_curr - timedelta(days=1)
@@ -359,7 +363,8 @@ def api_custom_role_create_visualization():
         charts = plan.get("charts", [])
         
         # Generate SQL query using Gemini
-        role_db = get_role_db_path(role_name)
+        manager = CustomRoleManager()
+        role_db = manager.get_role_db_path(role_name)
         if not role_db.exists():
             return jsonify({"ok": False, "error": "Role database not found"}), 404
         
@@ -494,7 +499,8 @@ def api_custom_role_create_visualization():
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS chart_insights (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            chart_id TEXT NOT NULL,
+                            chart_id TEXT NOT NULL UNIQUE,
+                            chart_title TEXT NOT NULL,
                             insights_json TEXT NOT NULL,
                             created_at TEXT NOT NULL DEFAULT (datetime('now')),
                             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -503,9 +509,13 @@ def api_custom_role_create_visualization():
                     
                     # Insert or update insights
                     cur.execute("""
-                        INSERT OR REPLACE INTO chart_insights (chart_id, insights_json, updated_at)
-                        VALUES (?, ?, datetime('now'))
-                    """, (chart_id, json.dumps(insights)))
+                        INSERT INTO chart_insights (chart_id, chart_title, insights_json, updated_at)
+                        VALUES (?, ?, ?, datetime('now'))
+                        ON CONFLICT(chart_id) DO UPDATE SET
+                            chart_title = excluded.chart_title,
+                            insights_json = excluded.insights_json,
+                            updated_at = excluded.updated_at;
+                    """, (chart_id, description, json.dumps(insights)))
                     
                     conn.commit()
                     conn.close()
@@ -578,7 +588,8 @@ def api_custom_role_delete_chart(role_name_from_path=None, chart_id_from_path=No
 def api_get_chart_insights(role_name, chart_id):
     """Get stored insights for a specific chart"""
     try:
-        role_db = get_role_db_path(role_name)
+        manager = CustomRoleManager()
+        role_db = manager.get_role_db_path(role_name)
         if not role_db.exists():
             return jsonify({"ok": False, "error": "Role database not found"}), 404
         
@@ -635,7 +646,8 @@ def api_generate_chart_insights():
             return jsonify({"ok": False, "error": "Failed to generate insights from the model"}), 500
 
         # Save insights to the role's database
-        role_db = get_role_db_path(role_name)
+        manager = CustomRoleManager()
+        role_db = manager.get_role_db_path(role_name)
         if not role_db.exists():
             return jsonify({"ok": False, "error": "Role database not found"}), 404
 
@@ -647,6 +659,7 @@ def api_generate_chart_insights():
             CREATE TABLE IF NOT EXISTS chart_insights (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chart_id TEXT NOT NULL UNIQUE,
+                chart_title TEXT NOT NULL,
                 insights_json TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -655,12 +668,13 @@ def api_generate_chart_insights():
 
         # Insert or update insights for the chart
         cur.execute("""
-            INSERT INTO chart_insights (chart_id, insights_json, updated_at)
-            VALUES (?, ?, datetime('now'))
+            INSERT INTO chart_insights (chart_id, chart_title, insights_json, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
             ON CONFLICT(chart_id) DO UPDATE SET
+                chart_title = excluded.chart_title,
                 insights_json = excluded.insights_json,
                 updated_at = excluded.updated_at;
-        """, (chart_id, json.dumps(insights)))
+        """, (chart_id, chart_title, json.dumps(insights)))
         
         conn.commit()
         conn.close()

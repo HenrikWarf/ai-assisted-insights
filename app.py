@@ -4,6 +4,7 @@ import os
 import sqlite3
 from pathlib import Path
 import json
+from app.models import CustomRoleManager
 
 load_dotenv()
 
@@ -11,6 +12,8 @@ APP_ROOT = Path(__file__).parent.resolve()
 STATIC_DIR = APP_ROOT / "static"
 DATA_DIR = APP_ROOT / "data"
 DB_PATH = DATA_DIR / "cfc.db"
+CUSTOM_DIR = APP_ROOT / "custom_roles"
+CUSTOM_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__, static_folder=str(STATIC_DIR))
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
@@ -249,8 +252,12 @@ def api_new_role_analyze():
                         # Store insights in database
                         insights_json = json.dumps(insights)
                         cur.execute("""
-                            INSERT INTO chart_insights (chart_id, chart_title, insights_json)
-                            VALUES (?, ?, ?)
+                            INSERT INTO chart_insights (chart_id, chart_title, insights_json, updated_at)
+                            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                            ON CONFLICT(chart_id) DO UPDATE SET
+                                insights_json = excluded.insights_json,
+                                chart_title = excluded.chart_title,
+                                updated_at = CURRENT_TIMESTAMP;
                         """, (chart_id, chart_title, insights_json))
                         
                 except Exception as e:
@@ -460,26 +467,9 @@ def api_metrics():
 
 @app.route("/api/custom_roles")
 def api_custom_roles():
-    """List all available custom roles for the homepage"""
-    custom_roles = []
-    if CUSTOM_DIR.exists():
-        for config_file in CUSTOM_DIR.glob("*.json"):
-            if config_file.name.endswith(".plan.json") or config_file.name.endswith(".sa.json"):
-                continue
-            try:
-                config = json.loads(config_file.read_text())
-                role_name = config.get("role_name", "")
-                if role_name:
-                    custom_roles.append({
-                        "name": role_name,
-                        "id": role_name.replace(" ", "_").lower(),
-                        "created": config_file.stat().st_mtime
-                    })
-            except Exception:
-                continue
-    
-    # Sort by creation time (newest first)
-    custom_roles.sort(key=lambda x: x["created"], reverse=True)
+    """List all available custom roles for the homepage."""
+    manager = CustomRoleManager()
+    custom_roles = manager.get_custom_roles()
     return jsonify({"custom_roles": custom_roles})
 
 @app.route("/api/custom_role/analyze", methods=["POST"])
