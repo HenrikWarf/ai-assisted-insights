@@ -163,7 +163,7 @@ class CustomRoleManager:
         for table_name in cfg.get("bq_tables", []):
             try:
                 # Fetch table and column metadata (descriptions)
-                table_ref = client.get_table(f"{cfg['gcp_project']}.{cfg['bq_dataset']}.{table_name}")
+                table_ref = client.get_table(f'{cfg['gcp_project']}.{cfg['bq_dataset']}.{table_name}')
                 schema_descriptions[table_name] = {
                     "table_description": table_ref.description,
                     "columns": {field.name: field.description for field in table_ref.schema}
@@ -171,9 +171,9 @@ class CustomRoleManager:
 
                 # Create SQLite table with mapped schema
                 columns_sql = ", ".join(
-                    [f"'{f.name}' {map_bq_type_to_sqlite(str(f.field_type))}" for f in table_ref.schema]
+                    [f'"{f.name}" {map_bq_type_to_sqlite(str(f.field_type))}' for f in table_ref.schema]
                 )
-                cur.execute(f"CREATE TABLE IF NOT EXISTS '{table_name}' ({columns_sql})")
+                cur.execute(f'CREATE TABLE IF NOT EXISTS "{table_name}" ({columns_sql})')
 
                 # Fetch data from BigQuery
                 full_table_name = f"`{cfg['gcp_project']}.{cfg['bq_dataset']}.{table_name}`"
@@ -182,7 +182,7 @@ class CustomRoleManager:
 
                 # Insert rows into SQLite in batches
                 placeholders = ",".join(["?"] * len(table_ref.schema))
-                insert_sql = f"INSERT INTO '{table_name}' VALUES ({placeholders})"
+                insert_sql = f'INSERT INTO "{table_name}" VALUES ({placeholders})'
                 batch = []
                 batch_size = 500
                 for row in rows:
@@ -273,15 +273,15 @@ class CustomRoleManager:
         for table in tables:
             try:
                 # Get table schema
-                cur.execute(f"PRAGMA table_info('{table}')")
+                cur.execute(f'PRAGMA table_info("{table}")')
                 columns = [{"name": r[1], "type": r[2], "nullable": not r[3]} for r in cur.fetchall()]
                 
                 # Get row count
-                cur.execute(f"SELECT COUNT(1) as cnt FROM '{table}'")
+                cur.execute(f'SELECT COUNT(1) as cnt FROM "{table}"')
                 row_count = cur.fetchone()["cnt"]
                 
                 # Get sample data (first 5 rows)
-                cur.execute(f"SELECT * FROM '{table}' LIMIT 5")
+                cur.execute(f'SELECT * FROM "{table}" LIMIT 5')
                 sample_data = [dict(r) for r in cur.fetchall()]
                 
                 # Get column value distributions for key columns
@@ -289,7 +289,7 @@ class CustomRoleManager:
                 for col in columns[:10]:  # Limit to first 10 columns
                     col_name = col["name"]
                     try:
-                        cur.execute(f"SELECT DISTINCT {col_name}, COUNT(1) as cnt FROM '{table}' GROUP BY {col_name} ORDER BY cnt DESC LIMIT 10")
+                        cur.execute(f'SELECT DISTINCT "{col_name}", COUNT(1) as cnt FROM "{table}" GROUP BY "{col_name}" ORDER BY cnt DESC LIMIT 10')
                         distributions[col_name] = [dict(r) for r in cur.fetchall()]
                     except Exception:
                         pass
@@ -307,25 +307,40 @@ class CustomRoleManager:
         
         # Ask Gemini for comprehensive KPI and visualization analysis
         try:
-            prompt = (
-                f"You are a data analyst bot writing SQLite queries. Your task is to generate a JSON object with KPIs, charts, and insights based STRICTLY on the provided schema for a '{role_name}'.\n\n"
-                "## Database Schema & Context\n"
-                f"The database has one primary table named `pa_sales`. The detailed schema for this table, including column data types and value distributions, is in the JSON context.\n"
-                "IMPORTANT: The JSON context also contains `schema_descriptions` with descriptions for the table and each column from BigQuery. Use these descriptions to better understand the data's meaning and business context.\n\n"
-                "## CRITICAL RULES (Failure to follow will result in errors):\n"
-                "1.  **Use ONLY the `pa_sales` table and its real columns**: Every query MUST use the exact column names from the `pa_sales` schema. Do NOT invent columns like `Item_Description` or `Vendor_Name`. Use `Product_Area_Name` for item/product names. Use `HFB_Name` for vendor/store names.\n"
-                "2.  **Quote Column Names**: Column names with spaces or special characters MUST be enclosed in double quotes (e.g., `\"Last_Week_This_Year_Sales\"`).\n"
-                "3.  **No Hallucination**: Do not assume any columns exist. If the data for a typical KPI (e.g., 'profit') is not available, calculate it from existing columns or do not create the KPI.\n"
-                "4.  **Valid SQLite ONLY**: All SQL must be 100% valid for SQLite.\n"
-                "5.  **KPI Formula Definition**: The `formula` for KPIs must be a complete `SELECT` statement that returns a single numeric value (e.g., `SELECT SUM(\"Last_Week_This_Year_Sales\") FROM pa_sales`).\n\n"
-                "## Output Format\n"
-                "Return a single JSON object with `kpis`, `charts`, and `insights` keys. Ensure the SQL in `formula` and `query_sql` is correct based on the rules above.\n"
-                "{\n"
-                '  "kpis": [{"id": "kpi_unique_id", "title": "KPI Title", "description": "...", "formula": "SELECT ...", "table": "pa_sales"}],\n'
-                '  "charts": [{"id": "chart_unique_id", "title": "Chart Title", "type": "bar|line|pie|table", "description": "...", "query_sql": "SELECT ..."}],\n'
-                '  "insights": ["..."]\n'
-                "}\n"
-            )
+            table_name = list(data_analysis.get("tables", {}).keys())[0]
+            prompt = f"""You are a data analyst bot writing SQLite queries. Your task is to generate a JSON object with KPIs, charts, and insights based STRICTLY on the provided schema for a '{role_name}'.
+
+## Database Schema & Context
+The database has one primary table named `{table_name}`. The detailed schema for this table, including column data types and value distributions, is in the JSON context.
+IMPORTANT: The JSON context also contains `schema_descriptions` with descriptions for the table and each column from BigQuery. Use these descriptions to better understand the data's meaning and business context.
+
+## CRITICAL RULES (Failure to follow will result in errors):
+1.  **Use ONLY the `{table_name}` table and its real columns**: Every query MUST use the exact column names from the `{table_name}` schema. Do NOT invent columns.
+2.  **Quote Column Names**: Column names with spaces or special characters MUST be enclosed in double quotes (e.g., '"Last_Week_This_Year_Sales"').
+3.  **No Hallucination**: Do not assume any columns exist. If the data for a typical KPI (e.g., 'profit') is not available, calculate it from existing columns or do not create the KPI.
+4.  **Valid SQLite ONLY**: All SQL must be 100% valid for SQLite.
+5.  **KPI Formula Definition**: The `formula` for KPIs must be a complete `SELECT` statement that returns a single numeric value (e.g., 'SELECT SUM("Last_Week_This_Year_Sales") FROM pa_sales').
+
+## Output Format
+Return a single JSON object with `kpis`, `charts`, and `insights` keys. Ensure the SQL in `formula` and `query_sql` is correct based on the rules above.
+{{
+  "kpis": [{{
+    "id": "kpi_unique_id", 
+    "title": "KPI Title", 
+    "description": "...", 
+    "formula": "SELECT ...", 
+    "table": "{table_name}"
+  }}],
+  "charts": [{{
+    "id": "chart_unique_id", 
+    "title": "Chart Title", 
+    "type": "bar|line|pie|table", 
+    "description": "...", 
+    "query_sql": "SELECT ..."
+  }}],
+  "insights": ["..."]
+}}
+"""
             plan = _generate_json_from_model(prompt, json.dumps(data_analysis, ensure_ascii=False, indent=2))
             
             # Generate Enhanced Insights for each chart automatically

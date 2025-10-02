@@ -179,7 +179,7 @@ def api_custom_role_metrics():
             
             def pick_date_column(table: str) -> str:
                 try:
-                    cur.execute(f"PRAGMA table_info('{table}')")
+                    cur.execute(f'PRAGMA table_info("{table}")')
                     cols = [r[1] for r in cur.fetchall()]
                 except Exception:
                     cols = []
@@ -189,10 +189,10 @@ def api_custom_role_metrics():
                 ]:
                     if name in cols:
                         return name
-                # Try fuzzy match
+                # Try fuzzy match for columns that have "date" or "day" in their names
                 for c in cols:
                     lc = c.lower()
-                    if any(x in lc for x in ["date", "day", "created", "updated", "signup", "purchase"]):
+                    if "date" in lc or "day" in lc:
                         return c
                 return ""
             
