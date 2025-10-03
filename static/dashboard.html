@@ -24,8 +24,8 @@
       <!-- Metadata Section -->
       <div class="metadata-bar">
         <div class="metadata-item">
-          <span class="metadata-label">Logged in as user =</span>
-          <span class="metadata-value">Henrik Warfvinge</span>
+          <span class="metadata-label">Logged in as:</span>
+          <span class="metadata-value" id="logged-in-user">Loading...</span>
         </div>
         <div class="metadata-item">
           <span class="metadata-label">Last analysis:</span>
@@ -206,7 +206,7 @@
           <h2>Content</h2>
           <div id="section-links" class="section-links" aria-label="Quick links to sections"></div>
         </section>
-        <section class="panel" id="schema-section-panel" style="display: none;">
+        <section class="panel" id="schema-section-panel">
           <h2>Available Data Fields</h2>
           <div id="schema-info" class="schema-info">
             <div class="schema-loading">Loading available data fields...</div>
@@ -267,6 +267,7 @@
     </div>
     
     <script src="/static/modal.js"></script>
+    <script src="/static/js/components/modals.js"></script>
     <script src="/static/js/components/kpi.js"></script>
     <script src="/static/js/components/metrics.js"></script>
     <script src="/static/js/components/accordion-metadata.js"></script>
@@ -304,6 +305,8 @@
     </script>
     <script src="/static/js/components/action-plan.js"></script>
     <script src="/static/js/services/visualizer.js"></script>
+    <script src="/static/js/utils/ui.js"></script>
+    <script src="/static/js/utils/formatters.js"></script>
     <script src="/static/js/dashboard-app.js"></script>
     <script>
       // If path is /dashboard/<role_name>, mark session role as custom in client for UI hints

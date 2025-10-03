@@ -6,6 +6,7 @@ This module contains Flask Blueprint for custom role management API endpoints.
 
 from flask import Blueprint, request, jsonify, session
 from app.models import CustomRoleManager
+from services.gemini_service import _generate_json_from_model, generate_chart_insights
 import sqlite3
 import json
 import logging
@@ -158,11 +159,6 @@ def api_custom_role_metrics():
         return jsonify({"error": "Role DB not found"}), 404
     
     # Build a lightweight metrics dict based on plan-generated SQL if present; otherwise row counts only
-    import sqlite3
-    import json
-    import logging
-    from pathlib import Path
-    from services.gemini_service import _generate_json_from_model, generate_chart_insights
     import re
     from datetime import datetime, timedelta
 
@@ -355,7 +351,10 @@ def api_custom_role_create_visualization():
     role_name = (payload.get("role_name") or "").strip()
     description = (payload.get("description") or "").strip()
     chart_id = payload.get("chart_id")  # Optional - if provided, edit existing chart
-    generate_insights = payload.get("generate_insights", True)
+    generate_insights = payload.get("generate_insights", False)  # Default to False to respect user choice
+    
+    # Debug logging
+    logging.info(f"Create visualization request - generate_insights: {generate_insights} (type: {type(generate_insights)})")
     
     if not role_name or not description:
         return jsonify({"ok": False, "error": "Missing role_name or description"}), 400
@@ -383,7 +382,7 @@ def api_custom_role_create_visualization():
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         
-        # Get table schemas
+        # Get table schemas with sample data
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'chart_%' AND name NOT LIKE 'analysis_%' AND name NOT IN ('actions', 'priority_insights', 'chart_insights', 'saved_analyses')")
         tables = [r[0] for r in cur.fetchall()]
         
@@ -397,33 +396,94 @@ def api_custom_role_create_visualization():
                     "type": row[2],
                     "nullable": not row[3]
                 })
-            schema_info[table] = {"columns": columns}
+            
+            # Get sample data to help AI understand the table content
+            cur.execute(f"SELECT * FROM {table} LIMIT 3")
+            sample_rows = [dict(r) for r in cur.fetchall()]
+            
+            # Get row count
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            row_count = cur.fetchone()[0]
+            
+            schema_info[table] = {
+                "columns": columns,
+                "sample_data": sample_rows,
+                "row_count": row_count
+            }
+        
+        # Get current chart context for edits
+        current_chart_context = ""
+        if chart_id:
+            clean_chart_id = chart_id.replace("chart_", "")
+            existing_chart = next((c for c in charts if str(c.get("id")) == clean_chart_id), None)
+            if existing_chart:
+                current_chart_context = f"""
+EDITING EXISTING CHART:
+- Current Title: {existing_chart.get('title', 'N/A')}
+- Current Type: {existing_chart.get('type', 'N/A')}
+- Current SQL Query: {existing_chart.get('query_sql', 'N/A')}
+- Current Description: {existing_chart.get('description', 'N/A')}
+
+User wants to modify this chart. Interpret their request as a modification to the existing visualization.
+"""
+        
+        # Get existing charts context
+        existing_charts_summary = ""
+        if charts:
+            existing_charts_summary = "\n\nEXISTING CHARTS IN THIS DASHBOARD:\n"
+            for chart in charts[:10]:  # Limit to first 10
+                existing_charts_summary += f"- {chart.get('title', 'Untitled')}: {chart.get('type', 'table')} chart\n"
         
         conn.close()
         
-        # Generate SQL query using Gemini
-        prompt = f"""
-        You are a SQL expert. Generate a SQL query for the following request:
-        
-        Request: {description}
-        
-        Available tables and columns:
-        {json.dumps(schema_info, indent=2)}
-        
-        Requirements:
-        1. Use only the tables and columns provided above
-        2. Generate a valid SQLite query
-        3. If the request mentions charts, focus on data aggregation and grouping
-        4. For time-based queries, use appropriate date functions
-        5. Return only the SQL query, no explanations
-        
-        SQL Query:
-        """
+        # Generate SQL query using Gemini with enhanced context
+        prompt = f"""You are an expert data analyst and SQL developer working on a dashboard for a {role_name} role.
+
+CONTEXT:
+- Role: {role_name}
+- User Request: {description}
+{current_chart_context}
+{existing_charts_summary}
+
+DATABASE SCHEMA AND SAMPLE DATA:
+{json.dumps(schema_info, indent=2)}
+
+INSTRUCTIONS:
+1. Analyze the user's request carefully in the context of the {role_name} role
+2. If editing an existing chart, understand what changes they want to make
+3. Review the sample data to understand the actual values and data types
+4. Generate a SQL query that:
+   - Uses only the available tables and columns shown above
+   - Returns data suitable for visualization
+   - Includes appropriate aggregations (GROUP BY, SUM, COUNT, AVG, etc.)
+   - For time-series: Orders by date/time column
+   - For comparisons: Groups by category with aggregated metrics
+   - For distributions: Shows breakdown across dimensions
+   - Limits results to reasonable size (e.g., TOP 10 categories if many exist)
+5. Consider what visualization type would work best:
+   - LINE CHART: Time-based trends (requires date column + metric)
+   - BAR CHART: Comparisons across categories (requires category + metric)
+   - PIE CHART: Distribution/breakdown (requires category + percentage/count)
+   - TABLE: Detailed records with multiple columns
+
+RETURN FORMAT:
+Return a JSON object with exactly these fields:
+{{
+  "sql_query": "SELECT ... FROM ... WHERE ... GROUP BY ... ORDER BY ...",
+  "suggested_chart_type": "line|bar|pie|table",
+  "chart_title": "Clear, descriptive title for the visualization",
+  "reasoning": "Brief explanation of your approach"
+}}
+
+Remember: The SQL must be valid SQLite syntax and return meaningful, aggregated data for visualization."""
         
         response = _generate_json_from_model(prompt, json.dumps(schema_info, indent=2))
         
-        # Extract SQL query from the response dictionary
-        sql_query = response.get('sql_query') or response.get('query') or response.get('sql') or str(response)
+        # Extract SQL query and metadata from the response
+        sql_query = response.get('sql_query') or response.get('query') or response.get('sql')
+        suggested_chart_type = response.get('suggested_chart_type', 'table')
+        chart_title = response.get('chart_title', description)
+        reasoning = response.get('reasoning', '')
         
         if not sql_query:
             return jsonify({"ok": False, "error": "Failed to generate SQL query"}), 500
@@ -451,41 +511,57 @@ def api_custom_role_create_visualization():
                 return jsonify({"ok": False, "error": "Query returned no results"}), 400
                 
         except Exception as e:
+            logging.error(f"SQL query error: {str(e)}")
+            logging.error(f"Failed query: {sql_query}")
             return jsonify({"ok": False, "error": f"Invalid SQL query: {str(e)}"}), 400
         
-        # Determine chart type based on description
-        chart_type = "table"  # default
-        desc_lower = description.lower()
-        if any(word in desc_lower for word in ["line", "trend", "over time", "timeline"]):
-            chart_type = "line"
-        elif any(word in desc_lower for word in ["bar", "compare", "comparison"]):
-            chart_type = "bar"
-        elif any(word in desc_lower for word in ["pie", "breakdown", "distribution", "share"]):
-            chart_type = "pie"
-        elif any(word in desc_lower for word in ["scatter", "correlation"]):
-            chart_type = "scatter"
+        # Use AI-suggested chart type, with fallback to keyword detection
+        chart_type = suggested_chart_type.lower() if suggested_chart_type else "table"
         
-        # Generate chart ID
+        # Fallback: If AI didn't provide a valid type, detect from description
+        if chart_type not in ["line", "bar", "pie", "scatter", "table"]:
+            desc_lower = description.lower()
+            if any(word in desc_lower for word in ["line", "trend", "over time", "timeline"]):
+                chart_type = "line"
+            elif any(word in desc_lower for word in ["bar", "compare", "comparison"]):
+                chart_type = "bar"
+            elif any(word in desc_lower for word in ["pie", "breakdown", "distribution", "share"]):
+                chart_type = "pie"
+            elif any(word in desc_lower for word in ["scatter", "correlation"]):
+                chart_type = "scatter"
+            else:
+                chart_type = "table"
+        
+        # Generate or update chart ID
         if chart_id:
-            # Editing existing chart
-            chart_id = chart_id.replace("chart_", "")
+            # Editing existing chart - keep the same ID
+            clean_chart_id = chart_id.replace("chart_", "")
         else:
-            # Creating new chart
-            chart_id = description.lower().replace(" ", "_").replace("-", "_")
-            chart_id = "".join(c for c in chart_id if c.isalnum() or c == "_")
-            chart_id = chart_id[:50]  # Limit length
+            # Creating new chart - generate new ID
+            existing_ids = [str(c.get("id")) for c in charts]
+            # Try to use a numeric ID
+            next_id = 1
+            while str(next_id) in existing_ids:
+                next_id += 1
+            clean_chart_id = str(next_id)
         
-        # Create chart object
+        # Create chart object with enhanced metadata
         chart_obj = {
-            "id": chart_id,
-            "title": description,
+            "id": clean_chart_id,
+            "title": chart_title,
+            "description": description,  # Store original user request
             "type": chart_type,
             "query_sql": sql_query
         }
         
-        if chart_id in [c.get("id") for c in charts]:
+        # Add reasoning to help with future edits (optional)
+        if reasoning:
+            chart_obj["ai_reasoning"] = reasoning
+        
+        # Update or add chart to the plan
+        if clean_chart_id in [str(c.get("id")) for c in charts]:
             # Update existing chart
-            charts = [c if c.get("id") != chart_id else chart_obj for c in charts]
+            charts = [c if str(c.get("id")) != clean_chart_id else chart_obj for c in charts]
         else:
             # Add new chart
             charts.append(chart_obj)
@@ -499,7 +575,7 @@ def api_custom_role_create_visualization():
         # Generate insights if requested
         if generate_insights:
             try:
-                insights = generate_chart_insights(results, description, chart_type)
+                insights = generate_chart_insights(chart_title, results, chart_type)
                 if insights:
                     # Store insights in database
                     conn = sqlite3.connect(str(role_db))
@@ -517,7 +593,7 @@ def api_custom_role_create_visualization():
                         )
                     """)
                     
-                    # Insert or update insights
+                    # Insert or update insights (using clean_chart_id and chart_title)
                     cur.execute("""
                         INSERT INTO chart_insights (chart_id, chart_title, insights_json, updated_at)
                         VALUES (?, ?, ?, datetime('now'))
@@ -525,7 +601,7 @@ def api_custom_role_create_visualization():
                             chart_title = excluded.chart_title,
                             insights_json = excluded.insights_json,
                             updated_at = excluded.updated_at;
-                    """, (chart_id, description, json.dumps(insights)))
+                    """, (clean_chart_id, chart_title, json.dumps(insights)))
                     
                     conn.commit()
                     conn.close()
@@ -535,8 +611,9 @@ def api_custom_role_create_visualization():
         return jsonify({
             "ok": True, 
             "message": "Visualization created successfully",
-            "chart_id": chart_id,
-            "chart_type": chart_type
+            "chart_id": clean_chart_id,
+            "chart_type": chart_type,
+            "chart_title": chart_title
         })
         
     except Exception as e:

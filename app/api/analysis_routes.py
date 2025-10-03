@@ -9,6 +9,7 @@ from app.models import build_metrics_for_role, filter_data_for_short_term
 from app.database import get_db_connection
 from services.gemini_service import analyze_metrics_short_term, analyze_metrics_long_term
 import json
+import logging
 
 analysis_bp = Blueprint('analysis', __name__)
 
@@ -157,12 +158,24 @@ def api_custom_role_analyze():
     """Analyze custom role metrics with Gemini."""
     payload = request.get_json(force=True)
     role_name = (payload.get("role_name") or "").strip()
+    
+    # Debug logging
+    logging.info(f"=== CUSTOM ROLE ANALYSIS DEBUG ===")
+    logging.info(f"Received role_name: {role_name}")
+    logging.info(f"Session role: {session.get('role', 'NOT SET')}")
+    logging.info(f"Session user: {session.get('user', 'NOT SET')}")
+    logging.info(f"==================================")
+    
     if not role_name:
         return jsonify({"ok": False, "error": "Missing role_name"}), 400
     
     # Get the metrics for this custom role
     from app.models import get_role_db_path
     role_db = get_role_db_path(role_name)
+    
+    logging.info(f"Role DB path: {role_db}")
+    logging.info(f"Role DB exists: {role_db.exists()}")
+    
     if not role_db.exists():
         return jsonify({"ok": False, "error": "Role DB not found"}), 404
     
@@ -286,6 +299,18 @@ def api_custom_role_analyze():
     analysis = None
     analysis_error = None
     try:
+        # Debug: Log what data is being analyzed
+        logging.info(f"Analyzing metrics for role: {role_name}")
+        logging.info(f"Number of metrics: {len(metrics)}")
+        logging.info(f"Metric keys: {list(metrics.keys())[:10]}")  # Show first 10 keys
+        
+        # Show sample data from one chart to verify it's correct
+        for key, value in metrics.items():
+            if key.startswith('chart_') and isinstance(value, list) and len(value) > 0:
+                logging.info(f"Sample chart data from {key}:")
+                logging.info(f"  First row: {value[0]}")
+                break
+        
         # Get short-term analysis (last 2 weeks) - for custom roles, we'll use all available data
         short_term_analysis = analyze_metrics_short_term(role_name, metrics)
         

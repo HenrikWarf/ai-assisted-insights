@@ -10,6 +10,12 @@ function updateMetadata(data) {
   try {
     const isCustomRole = !!window.__CUSTOM_ROLE_NAME__;
     
+    // Update logged in user
+    const loggedInUserEl = document.getElementById('logged-in-user');
+    if (loggedInUserEl && data.user) {
+      loggedInUserEl.textContent = data.user;
+    }
+    
     // Update data freshness
     const dataFreshnessEl = document.getElementById('data-freshness');
     if (dataFreshnessEl) {
@@ -152,40 +158,59 @@ function getIconForType(type) {
  * Initializes accordion functionality for collapsible sections
  */
 function initAccordion() {
-  const accordionHeaders = document.querySelectorAll('.accordion-header');
+  const accordionToggles = document.querySelectorAll('.accordion-toggle');
   
-  accordionHeaders.forEach(header => {
-    header.addEventListener('click', () => {
-      const content = header.nextElementSibling;
-      const isOpen = content.style.display === 'block';
+  accordionToggles.forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      // Get the content ID from aria-controls attribute
+      const contentId = toggle.getAttribute('aria-controls');
+      const content = document.getElementById(contentId);
+      
+      if (!content) {
+        console.warn(`Accordion content not found for ID: ${contentId}`);
+        return;
+      }
+      
+      const isOpen = toggle.getAttribute('aria-expanded') === 'true';
       
       // Close all other accordions
-      document.querySelectorAll('.accordion-content').forEach(acc => {
-        acc.style.display = 'none';
+      document.querySelectorAll('.accordion-toggle').forEach(otherToggle => {
+        const otherContentId = otherToggle.getAttribute('aria-controls');
+        const otherContent = document.getElementById(otherContentId);
+        if (otherContent && otherToggle !== toggle) {
+          otherContent.style.display = 'none';
+          otherToggle.setAttribute('aria-expanded', 'false');
+        }
       });
       
       // Toggle current accordion
       content.style.display = isOpen ? 'none' : 'block';
+      toggle.setAttribute('aria-expanded', !isOpen);
       
-      // Update header icon
-      const icon = header.querySelector('.accordion-icon');
-      if (icon) {
-        icon.textContent = isOpen ? '▶' : '▼';
-      }
+      // CSS handles the icon rotation via transform: rotate(90deg)
+      
+      console.log(`Accordion ${contentId} ${isOpen ? 'closed' : 'opened'}`);
     });
   });
+  
+  console.log(`Initialized ${accordionToggles.length} accordion toggles`);
 }
 
 /**
  * Forces all accordions to be closed
  */
 function forceAccordionClosed() {
-  document.querySelectorAll('.accordion-content').forEach(content => {
+  // Close all accordion content sections
+  document.querySelectorAll('.accordion-content, .panel-content').forEach(content => {
     content.style.display = 'none';
   });
   
-  document.querySelectorAll('.accordion-icon').forEach(icon => {
-    icon.textContent = '▶';
+  // Reset all accordion toggle states
+  document.querySelectorAll('.accordion-toggle').forEach(toggle => {
+    toggle.setAttribute('aria-expanded', 'false');
+    // CSS handles the icon rotation via aria-expanded attribute
   });
 }
 

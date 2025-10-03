@@ -6,7 +6,7 @@
     "pa_sales"
   ],
   "has_sa": false,
-  "created_at": "2025-10-02T12:31:34.354922",
+  "created_at": "2025-10-03T10:46:15.721395",
   "total_records": 252,
   "schema_descriptions": {
     "pa_sales": {
@@ -25,19 +25,19 @@
         "Last_Week_This_Year_Qty": "Net quantity sold from the previous week of the current year, based on the selected week.",
         "Last_Week_Last_Year_Qty": "Net quantity sold during the corresponding week in the previous year.",
         "Last_Week_This_Year_Budgeted_Sale_Price": "Sum of budgeted sales amount for New Articles and Pricing Articles from the previous week of the current year, based on the selected week.",
-        "Last_Week_This_Year_Gross_Profit": "Total budgeted sales of Articles â€“ total budgeted cost of Articles from the previous week of the current year, based on the selected week.",
+        "Last_Week_This_Year_Gross_Profit": "Total budgeted sales of Articles – total budgeted cost of Articles from the previous week of the current year, based on the selected week.",
         "Rolling_4w_This_Year_Sales": "Net sales amount from the previous 4 weeks of the current year, based on the selected week.",
         "Rolling_4w_Last_Year_Sales": "Net sales amount during the corresponding 4 weeks in the previous year.",
         "Rolling_4w_This_Year_Qty": "Net quantity sold from the previous 4 weeks of the current year, based on the selected week.",
         "Rolling_4w_Last_Year_Qty": "Net quantity sold during the corresponding 4 weeks in the previous year.",
         "Rolling_4w_Budgeted_Sale_Price": "Sum of budgeted sales amount for New Articles and Pricing Articles from the previous 4 weeks of the current year, based on the selected week.",
-        "Rolling_4w_Gross_Profit": "Total budgeted sales of Articles â€“ total budgeted cost of Articles from the previous 4 weeks of the current year, based on the selected week.",
+        "Rolling_4w_Gross_Profit": "Total budgeted sales of Articles – total budgeted cost of Articles from the previous 4 weeks of the current year, based on the selected week.",
         "YTD_This_Year_Sales": "Net sales year-to-date for the current year.",
         "YTD_Last_Year_Sales": "Net sales year-to-date for the previous year.",
         "YTD_This_Year_Qty": "Net quantity year-to-date for the current year.",
         "YTD_Last_Year_Qty": "Net quantity year-to-date for the previous year.",
         "YTD_Budgeted_Sale_Price": "Sum of budgeted sales amount for New Articles and Pricing Articles year-to-date.",
-        "YTD_Gross_Profit": "Total budgeted sales of Articles â€“ total budgeted cost of Articles year-to-date."
+        "YTD_Gross_Profit": "Total budgeted sales of Articles – total budgeted cost of Articles year-to-date."
       }
     }
   }

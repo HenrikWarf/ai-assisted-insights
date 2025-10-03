@@ -40,9 +40,12 @@ function createKPICard(title, value, previousValue, type = 'number', unit = '', 
  * @param {string} gridType - Type of grid ('short-term' or 'long-term')
  */
 function renderPriorityCards(priorities, gridType = 'short-term') {
-  const containerId = gridType === 'short-term' ? 'short-term-priorities' : 'long-term-priorities';
+  const containerId = gridType === 'short-term' ? 'short-term-grid' : 'long-term-grid';
   const container = document.getElementById(containerId);
-  if (!container) return;
+  if (!container) {
+    console.error(`Priority container not found: ${containerId}`);
+    return;
+  }
 
   // Clear existing cards
   container.innerHTML = '';
@@ -69,41 +72,82 @@ function createPriorityCard(priority, index, gridType) {
   const card = document.createElement('div');
   card.className = 'priority-card';
   card.setAttribute('data-priority', index);
+  card.setAttribute('data-grid-type', gridType);
   card.setAttribute('data-category', priority.category || 'general');
 
-  const evidenceHtml = priority.evidence ? 
-    Object.entries(priority.evidence)
-      .map(([key, value]) => `<div class="evidence-item"><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(value))}</div>`)
-      .join('') : '';
+  // Get category class for chip styling
+  const categoryClass = priority.category ? `cat-${priority.category.toLowerCase().replace(/\s+/g, '-')}` : '';
 
   card.innerHTML = `
-    <div class="priority-header">
-      <div class="priority-number">${index}</div>
-      <div class="priority-title">${escapeHtml(priority.title || 'Untitled Priority')}</div>
-      <div class="priority-category">${escapeHtml(priority.category || 'general')}</div>
+    <div class="title">
+      <div class="icon-circle">${index}</div>
+      <span>${escapeHtml(priority.title || 'Untitled Priority')}</span>
     </div>
-    <div class="priority-content">
-      <div class="priority-description">${escapeHtml(priority.why || 'No description available')}</div>
-      ${evidenceHtml ? `<div class="priority-evidence">${evidenceHtml}</div>` : ''}
+    <div class="chips">
+      <div class="chip ${categoryClass}">
+        <span class="dot"></span>
+        <span>${escapeHtml(priority.category || 'General')}</span>
+      </div>
+    </div>
+    <div class="body">
+      ${escapeHtml(priority.why || 'No description available')}
+    </div>
+    <div class="priority-actions">
+      <button class="btn-explore-act" 
+              data-priority-index="${index}" 
+              data-grid-type="${gridType}"
+              title="Explore this priority in detail">
+        🔍 Explore & Act
+      </button>
     </div>
   `;
 
+  // Add click handler for the explore button
+  const exploreBtn = card.querySelector('.btn-explore-act');
+  if (exploreBtn) {
+    exploreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openPriorityModal(priority, index, gridType);
+    });
+  }
+
   return card;
+}
+
+/**
+ * Opens the Priority Explore Modal for a specific priority
+ * @param {Object} priorityData - Priority data object
+ * @param {number} priorityIndex - Priority index (1-based)
+ * @param {string} gridType - Type of grid ('short-term' or 'long-term')
+ */
+function openPriorityModal(priorityData, priorityIndex, gridType) {
+  if (!window.priorityExploreModal) {
+    console.error('PriorityExploreModal not initialized');
+    if (window.showNotification) {
+      showNotification('Priority explore modal not available', 'error');
+    }
+    return;
+  }
+
+  console.log('Opening priority modal for:', priorityData.title);
+  
+  // Open the modal with the priority data
+  window.priorityExploreModal.open(priorityData, priorityIndex, gridType);
 }
 
 /**
  * Clears all priority cards from both short-term and long-term containers
  */
 function clearPriorityCards() {
-  const shortTermContainer = document.getElementById('short-term-priorities');
-  const longTermContainer = document.getElementById('long-term-priorities');
+  const shortTermGrid = document.getElementById('short-term-grid');
+  const longTermGrid = document.getElementById('long-term-grid');
   
-  if (shortTermContainer) {
-    shortTermContainer.innerHTML = '';
+  if (shortTermGrid) {
+    shortTermGrid.innerHTML = '';
   }
   
-  if (longTermContainer) {
-    longTermContainer.innerHTML = '';
+  if (longTermGrid) {
+    longTermGrid.innerHTML = '';
   }
 }
 

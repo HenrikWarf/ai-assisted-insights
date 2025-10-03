@@ -90,6 +90,7 @@ def analyze_metrics_short_term(role: str, metrics: Dict[str, Any]) -> Dict[str, 
 		"Each item in prioritized_issues must be an object: {priority (integer; 1 is highest), title (string), why (string), evidence (object; include relevant metric slices), suggested_actions (array of strings)}.\n"
 		"Focus on IMMEDIATE, TACTICAL actions that can be implemented within 1-2 weeks."
 	)
+	contents_json = json.dumps(metrics, ensure_ascii=False)
 	prompt = (
 		"You are Gemini 2.5 Pro. Analyze the following role-specific METRICS JSON (LAST 2 WEEKS ONLY) and produce a structured JSON with prioritized issues.\n"
 		f"Role: {role}\n"
@@ -102,9 +103,9 @@ def analyze_metrics_short_term(role: str, metrics: Dict[str, Any]) -> Dict[str, 
 		"Provide IMMEDIATE, ACTIONABLE recommendations that can be implemented within 1-2 weeks.\n"
 		"Explain WHY each issue is urgent and include evidence with recent metric values and dates.\n"
 		+ schema_hint + "\n"
+		+ f"\nMETRICS JSON:\n{contents_json}\n"
 	)
-	contents_json = json.dumps(metrics, ensure_ascii=False)
-	obj = _generate_json_from_model(prompt, contents_json)
+	obj = _generate_json_from_model(prompt, "{}")
 	# annotate
 	obj["engine"] = "gemini"
 	obj["auth_mode"] = AUTH_MODE
@@ -120,6 +121,7 @@ def analyze_metrics_long_term(role: str, metrics: Dict[str, Any]) -> Dict[str, A
 		"Each item in prioritized_issues must be an object: {priority (integer; 1 is highest), title (string), why (string), evidence (object; include relevant metric slices), suggested_actions (array of strings)}.\n"
 		"Focus on STRATEGIC, LONG-TERM initiatives that require planning and implementation over months."
 	)
+	contents_json = json.dumps(metrics, ensure_ascii=False)
 	prompt = (
 		"You are Gemini 2.5 Pro. Analyze the following role-specific METRICS JSON (FULL 90 DAYS) and produce a structured JSON with prioritized issues.\n"
 		f"Role: {role}\n"
@@ -133,9 +135,9 @@ def analyze_metrics_long_term(role: str, metrics: Dict[str, Any]) -> Dict[str, A
 		"Provide STRATEGIC recommendations that require planning and implementation over weeks to months.\n"
 		"Explain WHY each issue is strategically important and include evidence with trend data and time periods.\n"
 		+ schema_hint + "\n"
+		+ f"\nMETRICS JSON:\n{contents_json}\n"
 	)
-	contents_json = json.dumps(metrics, ensure_ascii=False)
-	obj = _generate_json_from_model(prompt, contents_json)
+	obj = _generate_json_from_model(prompt, "{}")
 	# annotate
 	obj["engine"] = "gemini"
 	obj["auth_mode"] = AUTH_MODE

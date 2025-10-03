@@ -16,10 +16,16 @@ function initializeDashboard() {
   // Initialize the metrics visualizer
   metricsVisualizer = new MetricsVisualizer();
   window.metricsVisualizer = metricsVisualizer;
+  window.loadCustomRoleMetrics = loadCustomRoleMetrics;
   
   // Initialize UI components
   initAccordion();
   enhanceKPICards();
+  
+  // Initialize modal listeners
+  if (typeof initializeModalListeners === 'function') {
+    initializeModalListeners();
+  }
   
   // Set up event listeners
   setupEventListeners();
@@ -34,6 +40,12 @@ function initializeDashboard() {
  * Sets up global event listeners
  */
 function setupEventListeners() {
+  // Logout button
+  const logoutBtn = document.getElementById('logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
+  
   // Analyze button
   const analyzeBtn = document.getElementById('analyze');
   if (analyzeBtn) {
@@ -51,6 +63,27 @@ function setupEventListeners() {
   if (addCustomVizBtn) {
     addCustomVizBtn.addEventListener('click', () => openCustomVizModal());
   }
+  
+  // Event delegation for dynamically generated saved analysis buttons
+  document.addEventListener('click', (e) => {
+    // View saved analysis button
+    if (e.target.closest('.btn-view-saved-analysis')) {
+      const analysisItem = e.target.closest('.saved-analysis-item');
+      if (analysisItem) {
+        const analysisId = analysisItem.getAttribute('data-analysis-id');
+        viewSavedAnalysis(analysisId);
+      }
+    }
+    
+    // View saved action button
+    if (e.target.closest('.btn-view-saved-action')) {
+      const actionItem = e.target.closest('.saved-action-list-item');
+      if (actionItem) {
+        const actionId = actionItem.getAttribute('data-action-id');
+        viewSavedAction(actionId);
+      }
+    }
+  });
   
   // Set up mutation observers for dynamic content
   setupMutationObservers();
@@ -115,8 +148,12 @@ async function loadDashboardData() {
       // Load saved analyses and actions for custom roles
       await loadSavedAnalyses();
       await loadSavedActions();
+      // Load latest priority analysis if available
+      await loadLatestAnalysis();
     } else {
       await loadBuiltInRoleMetrics();
+      // Load latest priority analysis if available
+      await loadLatestAnalysis();
     }
   } catch (error) {
     console.error('Error loading dashboard data:', error);
@@ -233,6 +270,74 @@ function renderSavedActions(actionsByPriority) {
 }
 
 /**
+ * Opens a saved analysis in the Priority Explore Modal
+ * @param {string} analysisId - ID of the saved analysis
+ */
+async function viewSavedAnalysis(analysisId) {
+  try {
+    console.log('Viewing saved analysis:', analysisId);
+    
+    // Fetch the saved analysis data
+    const response = await fetch(`/api/priority-insights/saved/${analysisId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    if (!result.success || !result.analysis) {
+      throw new Error('Failed to load analysis data');
+    }
+    
+    const analysis = result.analysis;
+    
+    // Open the Priority Explore Modal with the saved data
+    if (window.priorityExploreModal) {
+      window.priorityExploreModal.open(analysis.priority_data, analysis.priority_id, analysis.grid_type);
+    } else {
+      console.error('PriorityExploreModal not initialized');
+      showNotification('Modal not available', 'error');
+    }
+  } catch (error) {
+    console.error('Error viewing saved analysis:', error);
+    showNotification('Failed to load saved analysis', 'error');
+  }
+}
+
+/**
+ * Opens a saved action in the Explore Action Modal
+ * @param {string} actionId - ID of the saved action
+ */
+async function viewSavedAction(actionId) {
+  try {
+    console.log('Viewing saved action:', actionId);
+    
+    // Fetch the saved action data
+    const response = await fetch(`/api/actions/saved/${actionId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    if (!result.success || !result.action) {
+      throw new Error('Failed to load action data');
+    }
+    
+    const action = result.action;
+    
+    // Open the Explore Action Modal with the saved data
+    if (window.exploreActionModal) {
+      window.exploreActionModal.open(action.action_data, action.priority_data, action.priority_id, action.grid_type);
+    } else {
+      console.error('ExploreActionModal not initialized');
+      showNotification('Modal not available', 'error');
+    }
+  } catch (error) {
+    console.error('Error viewing saved action:', error);
+    showNotification('Failed to load saved action', 'error');
+  }
+}
+
+/**
  * Loads metrics for built-in roles (E-commerce Manager, Marketing Lead, etc.)
  */
 async function loadBuiltInRoleMetrics() {
@@ -245,7 +350,13 @@ async function loadBuiltInRoleMetrics() {
     const data = await response.json();
     window.__LATEST_METRICS__ = data;
     
-    // Render metrics
+    // Update dashboard title with role name
+    const dashboardTitle = document.querySelector('.header h1');
+    if (dashboardTitle) {
+      dashboardTitle.textContent = `${data.role} Dashboard`;
+    }
+    
+    // Render metrics (this also calls updateMetadata)
     renderMetrics(data);
     
     // Render KPI grid
@@ -282,6 +393,17 @@ async function loadCustomRoleMetrics() {
     const data = await response.json();
     window.__LATEST_METRICS__ = data;
     
+    // Update dashboard title with role name
+    const dashboardTitle = document.querySelector('.header h1');
+    if (dashboardTitle) {
+      dashboardTitle.textContent = `${data.role} Dashboard`;
+    }
+    
+    // Update metadata (data freshness, total records)
+    if (typeof updateMetadata === 'function') {
+      updateMetadata(data);
+    }
+    
     // Render custom role metrics
     renderCustomRoleMetrics(data.metrics, data);
     
@@ -294,6 +416,9 @@ async function loadCustomRoleMetrics() {
     if (metricsVisualizer) {
       metricsVisualizer.renderCustomRoleCharts(document.getElementById('topic-groups'), data.metrics);
     }
+    
+    // Load and render schema information
+    await loadSchemaInfo(roleName);
     
   } catch (error) {
     console.error('Error loading custom role metrics:', error);
@@ -316,9 +441,19 @@ async function triggerAnalysis() {
   try {
     const isCustomRole = !!window.__CUSTOM_ROLE_NAME__;
     
+    // Debug logging
+    console.log('=== ANALYSIS DEBUG ===');
+    console.log('Current URL:', window.location.pathname);
+    console.log('Is Custom Role:', isCustomRole);
+    console.log('Role Name:', window.__CUSTOM_ROLE_NAME__);
+    console.log('=====================');
+    
     // Step 1: Trigger the analysis generation
     const analyzeEndpoint = isCustomRole ? '/api/custom_role/analyze' : '/api/analyze';
     const analyzePayload = isCustomRole ? { role_name: window.__CUSTOM_ROLE_NAME__ } : {};
+    
+    console.log('Analysis Endpoint:', analyzeEndpoint);
+    console.log('Analysis Payload:', analyzePayload);
     
     const analyzeResponse = await fetch(analyzeEndpoint, {
       method: 'POST',
@@ -337,17 +472,10 @@ async function triggerAnalysis() {
     // We will need to trigger this for both short-term and long-term grids.
     // This part of the logic may need to be adjusted based on what `analyzeResult` contains.
     
-    // For now, let's assume the analysis endpoint returns the priorities, and we render them.
-    if (analyzeResult.plan) {
-      // In the new flow, the analysis endpoint just generates the plan.
-      // The actions are generated on demand by the user clicking a button on a priority card.
-      // So, we will just render the high-level analysis summary.
-      renderAnalysisSummary(analyzeResult.plan);
-      showNotification('Analysis plan generated. Next, generate actions for each priority.', 'success');
-    } else {
-       // Fallback for old analysis structure
-       renderAnalysisResults(analyzeResult.analysis);
-    }
+    // After analysis is complete, load and render the latest analysis results
+    await loadLatestAnalysis();
+    
+    showNotification('Analysis complete! Priority insights generated.', 'success');
 
   } catch (error) {
     console.error('Error during analysis:', error);
@@ -425,6 +553,30 @@ async function loadLatestAnalysis() {
 }
 
 /**
+ * Handles user logout
+ */
+async function handleLogout() {
+  try {
+    const response = await fetch('/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (response.ok) {
+      // Redirect to login page
+      window.location.href = '/';
+    } else {
+      showNotification('Logout failed. Please try again.', 'error');
+    }
+  } catch (error) {
+    console.error('Error during logout:', error);
+    showNotification('Logout failed. Please try again.', 'error');
+  }
+}
+
+/**
  * Records a user action for analytics
  * @param {string} actionType - Type of action performed
  * @param {Object} details - Additional action details
@@ -448,6 +600,34 @@ async function recordAction(actionType, details = {}) {
 }
 
 /**
+ * Loads schema information for a custom role
+ * @param {string} roleName - Name of the role
+ */
+async function loadSchemaInfo(roleName) {
+  const container = document.getElementById('schema-info');
+  const panel = document.getElementById('schema-section-panel');
+  
+  if (!container) return;
+  
+  try {
+    const response = await fetch(`/api/custom_role/schema?role_name=${encodeURIComponent(roleName)}`);
+    const result = await response.json();
+    
+    if (result.ok && result.schema) {
+      renderSchemaInfo(result.schema);
+      if (panel) {
+        panel.style.display = 'block';
+      }
+    } else {
+      container.innerHTML = '<div class="schema-loading">No schema information available</div>';
+    }
+  } catch (error) {
+    console.error('Error loading schema info:', error);
+    container.innerHTML = '<div class="schema-loading">Failed to load schema information</div>';
+  }
+}
+
+/**
  * Renders schema information for custom roles
  * @param {Object} schema - Database schema object
  */
@@ -455,25 +635,30 @@ function renderSchemaInfo(schema) {
   const container = document.getElementById('schema-info');
   if (!container || !schema) return;
   
-  let html = '<div class="schema-section"><h3>Database Schema</h3>';
+  let html = '<div class="schema-section">';
   
   Object.entries(schema).forEach(([tableName, tableInfo]) => {
     html += `
-      <div class="table-schema">
-        <h4>${escapeHtml(tableName)} (${tableInfo.row_count.toLocaleString()} rows)</h4>
-        <div class="columns-grid">
+      <div class="schema-table">
+        <div class="schema-table-header">
+          <span class="schema-table-name">${escapeHtml(tableName)}</span>
+          <span class="schema-table-count">${tableInfo.row_count.toLocaleString()} rows</span>
+        </div>
+        <div class="schema-columns">
     `;
     
     tableInfo.columns.forEach(column => {
-      const iconClass = getColumnIconClass(column.inferred_type);
-      const iconText = getColumnIconText(column.inferred_type);
+      const typeClass = (column.inferred_type || column.type || 'text').toLowerCase();
+      const iconText = getColumnIconText(column.inferred_type || column.type);
       
       html += `
-        <div class="column-item">
-          <i class="${iconClass}"></i>
-          <span class="column-name">${escapeHtml(column.name)}</span>
-          <span class="column-type">${escapeHtml(iconText)}</span>
-          ${column.primary_key ? '<span class="primary-key">PK</span>' : ''}
+        <div class="schema-column">
+          <div class="schema-column-icon ${typeClass}">${iconText.charAt(0)}</div>
+          <div class="schema-column-info">
+            <div class="schema-column-name">${escapeHtml(column.name)}</div>
+            <div class="schema-column-type">${escapeHtml(iconText)}</div>
+          </div>
+          ${column.primary_key ? '<span style="background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: auto;">PK</span>' : ''}
         </div>
       `;
     });

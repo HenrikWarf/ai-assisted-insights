@@ -11,42 +11,39 @@ let currentEditingChartId = null;
 function openCustomVizModal(chartId = null) {
   currentEditingChartId = chartId;
   const modal = document.getElementById('custom-viz-modal');
-  const title = document.getElementById('custom-viz-title');
-  const description = document.getElementById('custom-viz-description');
+  const modalTitle = document.getElementById('custom-viz-title');
+  const descriptionInput = document.getElementById('custom-viz-input');
   const generateBtn = document.getElementById('custom-viz-generate');
+  const enhancedInsightsCheckbox = document.getElementById('enhanced-insights-checkbox');
   
-  if (!modal || !title || !description || !generateBtn) {
+  if (!modal || !modalTitle || !descriptionInput || !generateBtn) {
     console.error('Custom viz modal elements not found');
     return;
   }
   
-  // Clear form
-  title.value = '';
-  description.value = '';
+  // Clear form and reset checkbox to default (checked)
+  descriptionInput.value = '';
+  if (enhancedInsightsCheckbox) {
+    enhancedInsightsCheckbox.checked = true;  // Reset to default checked state
+  }
   
   // Update UI based on mode
   if (chartId) {
     // Edit mode
+    modalTitle.textContent = 'Edit Visualization';
     generateBtn.textContent = 'Update Chart';
     generateBtn.style.backgroundColor = '#059669';
     
-    // Try to populate with existing chart data
-    if (window.__LATEST_METRICS__ && window.__LATEST_METRICS__.plan) {
-      const charts = window.__LATEST_METRICS__.plan.charts || [];
-      const existingChart = charts.find(chart => chart.id === chartId);
-      if (existingChart) {
-        title.value = existingChart.title || '';
-        description.value = existingChart.description || '';
-      }
-    }
+    // Leave description input empty for user to enter new description
   } else {
     // Create mode
-    generateBtn.textContent = 'Generate Chart';
+    modalTitle.textContent = 'Add Custom Visualization';
+    generateBtn.textContent = 'Generate Visualization';
     generateBtn.style.backgroundColor = '#3b82f6';
   }
   
   modal.style.display = 'flex';
-  description.focus();
+  descriptionInput.focus();
 }
 
 /**
@@ -64,22 +61,25 @@ function closeCustomVizModal() {
  * Generates or updates a custom visualization
  */
 async function generateCustomVisualization() {
-  const title = document.getElementById('custom-viz-title');
-  const description = document.getElementById('custom-viz-description');
+  const descriptionInput = document.getElementById('custom-viz-input');
   const generateBtn = document.getElementById('custom-viz-generate');
+  const enhancedInsightsCheckbox = document.getElementById('enhanced-insights-checkbox');
   
-  if (!title || !description || !generateBtn) {
+  if (!descriptionInput || !generateBtn) {
     console.error('Custom viz form elements not found');
     return;
   }
   
-  const chartTitle = title.value.trim();
-  const chartDescription = description.value.trim();
+  const chartDescription = descriptionInput.value.trim();
   
   if (!chartDescription) {
     alert('Please provide a description for the visualization');
     return;
   }
+  
+  // Read checkbox state - default to false if checkbox not found to respect user's choice
+  const generateInsights = enhancedInsightsCheckbox ? enhancedInsightsCheckbox.checked : false;
+  console.log('Generate insights checkbox state:', generateInsights);
   
   // Disable button and show loading state
   const originalText = generateBtn.textContent;
@@ -94,14 +94,15 @@ async function generateCustomVisualization() {
     
     const payload = {
       role_name: roleName,
-      description: chartDescription
+      description: chartDescription,
+      generate_insights: generateInsights
     };
     
     if (currentEditingChartId) {
       payload.chart_id = currentEditingChartId;
     }
     
-    const response = await fetch('/api/custom_role/generate_viz', {
+    const response = await fetch('/api/custom_role/create_visualization', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -119,7 +120,12 @@ async function generateCustomVisualization() {
     closeCustomVizModal();
     
     // Refresh metrics to show new chart
-    await loadCustomRoleMetrics();
+    if (typeof loadCustomRoleMetrics === 'function') {
+      await loadCustomRoleMetrics();
+    } else {
+      // Fallback: reload the page
+      window.location.reload();
+    }
     
     // Show success message
     showNotification(
@@ -305,3 +311,8 @@ document.head.appendChild(style);
 
 // Export functions to global scope
 window.initializeModalListeners = initializeModalListeners;
+window.openCustomVizModal = openCustomVizModal;
+window.closeCustomVizModal = closeCustomVizModal;
+window.generateCustomVisualization = generateCustomVisualization;
+window.deleteCustomChart = deleteCustomChart;
+window.showNotification = showNotification;
