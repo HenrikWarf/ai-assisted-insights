@@ -1,0 +1,167 @@
+{
+  "kpis": [
+    {
+      "id": "kpi_total_ytd_sales_this_year",
+      "title": "YTD Sales (This Year)",
+      "description": "Total year-to-date sales for the current year.",
+      "formula": "SELECT SUM(\"YTD_This_Year_Sales\") FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_ytd_sales_growth_percentage",
+      "title": "YTD Sales Growth %",
+      "description": "The percentage growth in year-to-date sales compared to the same period last year.",
+      "formula": "SELECT (SUM(\"YTD_This_Year_Sales\") - SUM(\"YTD_Last_Year_Sales\")) * 100.0 / NULLIF(SUM(\"YTD_Last_Year_Sales\"), 0) FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_total_ytd_gross_profit",
+      "title": "YTD Gross Profit",
+      "description": "Total year-to-date gross profit for the current year.",
+      "formula": "SELECT SUM(\"YTD_Gross_Profit\") FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_ytd_gross_profit_margin_percentage",
+      "title": "YTD Gross Profit Margin %",
+      "description": "The year-to-date gross profit as a percentage of total YTD sales.",
+      "formula": "SELECT SUM(\"YTD_Gross_Profit\") * 100.0 / NULLIF(SUM(\"YTD_This_Year_Sales\"), 0) FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_last_week_sales_yoy_growth_percentage",
+      "title": "Last Week Sales YoY Growth %",
+      "description": "The percentage growth in sales from the last week compared to the same week last year.",
+      "formula": "SELECT (SUM(\"Last_Week_This_Year_Sales\") - SUM(\"Last_Week_Last_Year_Sales\")) * 100.0 / NULLIF(SUM(\"Last_Week_Last_Year_Sales\"), 0) FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_rolling_4w_sales_yoy_growth_percentage",
+      "title": "Rolling 4-Week Sales YoY Growth %",
+      "description": "The percentage growth in rolling 4-week sales compared to the same period last year.",
+      "formula": "SELECT (SUM(\"Rolling_4w_This_Year_Sales\") - SUM(\"Rolling_4w_Last_Year_Sales\")) * 100.0 / NULLIF(SUM(\"Rolling_4w_Last_Year_Sales\"), 0) FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_total_ytd_quantity_sold",
+      "title": "YTD Quantity Sold",
+      "description": "Total quantity of products sold year-to-date for the current year.",
+      "formula": "SELECT SUM(\"YTD_This_Year_Qty\") FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_ytd_quantity_growth_percentage",
+      "title": "YTD Quantity Growth %",
+      "description": "The percentage growth in the quantity of products sold year-to-date compared to the same period last year.",
+      "formula": "SELECT (SUM(\"YTD_This_Year_Qty\") - SUM(\"YTD_Last_Year_Qty\")) * 100.0 / NULLIF(SUM(\"YTD_Last_Year_Qty\"), 0) FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_ytd_average_selling_price",
+      "title": "YTD Average Selling Price (Actual)",
+      "description": "The actual average selling price of products sold year-to-date (Total YTD Sales / Total YTD Quantity).",
+      "formula": "SELECT SUM(\"YTD_This_Year_Sales\") / NULLIF(SUM(\"YTD_This_Year_Qty\"), 0) FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_ytd_average_budgeted_price_weighted",
+      "title": "YTD Weighted Avg Budgeted Price",
+      "description": "The weighted average budgeted sale price for products sold year-to-date, based on quantity sold.",
+      "formula": "SELECT SUM(\"YTD_Budgeted_Sale_Price\" * \"YTD_This_Year_Qty\") / NULLIF(SUM(\"YTD_This_Year_Qty\"), 0) FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_total_rolling_4w_gross_profit",
+      "title": "Rolling 4-Week Gross Profit",
+      "description": "Total gross profit from the last rolling 4-week period.",
+      "formula": "SELECT SUM(\"Rolling_4w_Gross_Profit\") FROM \"pa_sales\"",
+      "table": "pa_sales"
+    },
+    {
+      "id": "kpi_total_last_week_sales",
+      "title": "Last Week's Sales",
+      "description": "Total sales revenue from last week.",
+      "formula": "SELECT SUM(\"Last_Week_This_Year_Sales\") FROM \"pa_sales\"",
+      "table": "pa_sales"
+    }
+  ],
+  "charts": [
+    {
+      "id": 1,
+      "title": "YTD Sales vs Last Year by Market Area",
+      "description": "Compares Year-to-Date (YTD) sales for the current year against the same period last year, segmented by Primary Market Area.",
+      "type": "bar",
+      "query_sql": "SELECT \"Primary_Market_Area_Name\", SUM(\"YTD_This_Year_Sales\") AS \"YTD Sales This Year\", SUM(\"YTD_Last_Year_Sales\") AS \"YTD Sales Last Year\" FROM \"pa_sales\" GROUP BY \"Primary_Market_Area_Name\" ORDER BY SUM(\"YTD_This_Year_Sales\") DESC;"
+    },
+    {
+      "id": 2,
+      "title": "YTD Sales vs Last Year by Product Area",
+      "description": "Compares Year-to-Date (YTD) sales for the current year against the same period last year, broken down by Product Area.",
+      "type": "bar",
+      "query_sql": "SELECT \"Product_Area_Name\", SUM(\"YTD_This_Year_Sales\") AS \"YTD Sales This Year\", SUM(\"YTD_Last_Year_Sales\") AS \"YTD Sales Last Year\" FROM \"pa_sales\" GROUP BY \"Product_Area_Name\" ORDER BY SUM(\"YTD_This_Year_Sales\") DESC;"
+    },
+    {
+      "id": 3,
+      "title": "Weekly Sales Trend (This Year vs Last Year)",
+      "description": "Tracks total sales week by week, comparing the current year's performance to the previous year.",
+      "type": "line",
+      "query_sql": "SELECT \"week_start_date\", SUM(\"Last_Week_This_Year_Sales\") AS \"This Year Sales\", SUM(\"Last_Week_Last_Year_Sales\") AS \"Last Year Sales\" FROM \"pa_sales\" GROUP BY \"week_start_date\" ORDER BY \"week_start_date\" ASC;"
+    },
+    {
+      "id": 4,
+      "title": "YTD Gross Profit Contribution by Product Area",
+      "description": "Shows the percentage of total Year-to-Date (YTD) gross profit contributed by each Product Area.",
+      "type": "pie",
+      "query_sql": "SELECT \"Product_Area_Name\", SUM(\"YTD_Gross_Profit\") AS \"YTD_Gross_Profit\" FROM \"pa_sales\" WHERE \"YTD_Gross_Profit\" > 0 GROUP BY \"Product_Area_Name\" ORDER BY SUM(\"YTD_Gross_Profit\") DESC;"
+    },
+    {
+      "id": 5,
+      "title": "YTD Sales Growth (%) by Market Area",
+      "description": "Calculates and displays the percentage growth in Year-to-Date (YTD) sales from last year to this year for each Primary Market Area.",
+      "type": "bar",
+      "query_sql": "SELECT \"Primary_Market_Area_Name\", (SUM(\"YTD_This_Year_Sales\") - SUM(\"YTD_Last_Year_Sales\")) * 100.0 / SUM(\"YTD_Last_Year_Sales\") AS \"YTD_Sales_Growth_Percentage\" FROM \"pa_sales\" WHERE \"YTD_Last_Year_Sales\" > 0 GROUP BY \"Primary_Market_Area_Name\" ORDER BY \"YTD_Sales_Growth_Percentage\" DESC;"
+    },
+    {
+      "id": 6,
+      "title": "Rolling 4-Week Quantity Sold (TY vs LY) by HFB",
+      "description": "Displays the quantity of items sold over the last four weeks for this year and last year, grouped by HFB Name.",
+      "type": "bar",
+      "query_sql": "SELECT \"HFB_Name\", SUM(\"Rolling_4w_This_Year_Qty\") AS \"4-Week Qty This Year\", SUM(\"Rolling_4w_Last_Year_Qty\") AS \"4-Week Qty Last Year\" FROM \"pa_sales\" GROUP BY \"HFB_Name\" ORDER BY SUM(\"Rolling_4w_This_Year_Qty\") DESC;"
+    },
+    {
+      "id": 7,
+      "title": "YTD Performance Summary by Product Area",
+      "description": "A detailed table summarizing Year-to-Date (YTD) sales, quantity sold, and gross profit for this year and last year, for each Product Area.",
+      "type": "table",
+      "query_sql": "SELECT \"Product_Area_Name\", SUM(\"YTD_This_Year_Sales\") AS \"YTD Sales TY\", SUM(\"YTD_Last_Year_Sales\") AS \"YTD Sales LY\", SUM(\"YTD_This_Year_Qty\") AS \"YTD Qty TY\", SUM(\"YTD_Last_Year_Qty\") AS \"YTD Qty LY\", SUM(\"YTD_Gross_Profit\") AS \"YTD Gross Profit\" FROM \"pa_sales\" GROUP BY \"Product_Area_Name\" ORDER BY \"YTD Sales TY\" DESC;"
+    },
+    {
+      "id": 8,
+      "title": "Top 10 HFB by Rolling 4-Week Sales",
+      "description": "Identifies the top 10 HFBs based on their sales performance over the last four weeks.",
+      "type": "bar",
+      "query_sql": "SELECT \"HFB_Name\", SUM(\"Rolling_4w_This_Year_Sales\") AS \"Rolling_4w_Sales\" FROM \"pa_sales\" GROUP BY \"HFB_Name\" ORDER BY \"Rolling_4w_Sales\" DESC LIMIT 10;"
+    },
+    {
+      "id": 9,
+      "title": "Budgeted vs. Actual YTD Sale Price by Product Area",
+      "description": "Compares the average budgeted sale price with the calculated actual sale price (Sales/Quantity) for the Year-to-Date, by Product Area.",
+      "type": "bar",
+      "query_sql": "SELECT \"Product_Area_Name\", AVG(\"YTD_Budgeted_Sale_Price\") AS \"Budgeted_Price\", SUM(\"YTD_This_Year_Sales\") / SUM(\"YTD_This_Year_Qty\") AS \"Actual_Price\" FROM \"pa_sales\" WHERE \"YTD_This_Year_Qty\" > 0 GROUP BY \"Product_Area_Name\" ORDER BY \"Product_Area_Name\";"
+    },
+    {
+      "id": 10,
+      "title": "YTD Quantity Growth (%) by Product Area",
+      "description": "Calculates the percentage growth in quantity sold Year-to-Date from last year to this year, for each Product Area.",
+      "type": "bar",
+      "query_sql": "SELECT \"Product_Area_Name\", (SUM(\"YTD_This_Year_Qty\") - SUM(\"YTD_Last_Year_Qty\")) * 100.0 / SUM(\"YTD_Last_Year_Qty\") AS \"YTD_Quantity_Growth_Percentage\" FROM \"pa_sales\" WHERE \"YTD_Last_Year_Qty\" > 0 GROUP BY \"Product_Area_Name\" ORDER BY \"YTD_Quantity_Growth_Percentage\" DESC;"
+    }
+  ],
+  "insights": [
+    "Sales Transactions",
+    "Product Performance",
+    "Customer Purchasing Behavior",
+    "Store Performance",
+    "Revenue and Discounting"
+  ]
+}

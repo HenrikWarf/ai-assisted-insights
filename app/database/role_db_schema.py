@@ -84,14 +84,14 @@ def initialize_role_db(db_path: Path):
 
         # Application-specific tables from the original design
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS chart_insights (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chart_id TEXT NOT NULL UNIQUE,
-                insights_json TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )
-        """)
+                    CREATE TABLE IF NOT EXISTS chart_insights (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        chart_id TEXT NOT NULL UNIQUE,
+                        chart_title TEXT NOT NULL,
+                        insights_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                    )        """)
         
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS action_notes (

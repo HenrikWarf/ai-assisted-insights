@@ -1,0 +1,44 @@
+{
+  "role_name": "Sales Analyst",
+  "gcp_project": "ml-developer-project-fe07",
+  "bq_dataset": "furniture_retail",
+  "bq_tables": [
+    "pa_sales"
+  ],
+  "has_sa": false,
+  "created_at": "2025-10-02T12:31:34.354922",
+  "total_records": 252,
+  "schema_descriptions": {
+    "pa_sales": {
+      "table_description": null,
+      "columns": {
+        "week_start_date": "Weeks start on Sunday and end on Saturday.",
+        "syw_no": null,
+        "Primary_Market_Area_Name": "Primary market area name.",
+        "Primary_Market_Area_No": "Primary market area number.",
+        "HFB_Name": "Home furnishing name.",
+        "HFB_No": "Home furnishing number.",
+        "Product_Area_Name": "Product area name.",
+        "Product_Area_No": "Product area number.",
+        "Last_Week_This_Year_Sales": "Net sales amount from the previous week of the current year, based on the selected week.",
+        "Last_Week_Last_Year_Sales": "Net sales amount during the corresponding week in the previous year.",
+        "Last_Week_This_Year_Qty": "Net quantity sold from the previous week of the current year, based on the selected week.",
+        "Last_Week_Last_Year_Qty": "Net quantity sold during the corresponding week in the previous year.",
+        "Last_Week_This_Year_Budgeted_Sale_Price": "Sum of budgeted sales amount for New Articles and Pricing Articles from the previous week of the current year, based on the selected week.",
+        "Last_Week_This_Year_Gross_Profit": "Total budgeted sales of Articles – total budgeted cost of Articles from the previous week of the current year, based on the selected week.",
+        "Rolling_4w_This_Year_Sales": "Net sales amount from the previous 4 weeks of the current year, based on the selected week.",
+        "Rolling_4w_Last_Year_Sales": "Net sales amount during the corresponding 4 weeks in the previous year.",
+        "Rolling_4w_This_Year_Qty": "Net quantity sold from the previous 4 weeks of the current year, based on the selected week.",
+        "Rolling_4w_Last_Year_Qty": "Net quantity sold during the corresponding 4 weeks in the previous year.",
+        "Rolling_4w_Budgeted_Sale_Price": "Sum of budgeted sales amount for New Articles and Pricing Articles from the previous 4 weeks of the current year, based on the selected week.",
+        "Rolling_4w_Gross_Profit": "Total budgeted sales of Articles – total budgeted cost of Articles from the previous 4 weeks of the current year, based on the selected week.",
+        "YTD_This_Year_Sales": "Net sales year-to-date for the current year.",
+        "YTD_Last_Year_Sales": "Net sales year-to-date for the previous year.",
+        "YTD_This_Year_Qty": "Net quantity year-to-date for the current year.",
+        "YTD_Last_Year_Qty": "Net quantity year-to-date for the previous year.",
+        "YTD_Budgeted_Sale_Price": "Sum of budgeted sales amount for New Articles and Pricing Articles year-to-date.",
+        "YTD_Gross_Profit": "Total budgeted sales of Articles – total budgeted cost of Articles year-to-date."
+      }
+    }
+  }
+}

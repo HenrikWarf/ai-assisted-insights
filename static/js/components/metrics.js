@@ -218,39 +218,48 @@ function renderMerchandiserMetrics(metrics) {
 /**
  * Renders custom role metrics
  * @param {Object} metrics - Metrics data
- * @param {Object} data - Full data object
+ * @param {Object} data - Full data object from the API
  */
 function renderCustomRoleMetrics(metrics, data) {
+  console.log('Metrics object:', metrics);
   const container = document.getElementById('metrics-container');
+  if (!container) return;
   
+  const plan = data.plan;
+
   // Render KPI cards
   const kpiCards = [];
   Object.entries(metrics).forEach(([key, value]) => {
     if (key.startsWith('kpi_') && typeof value === 'object' && value !== null) {
-      const kpiTitle = key.replace('kpi_', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const kpiId = key.substring(4);
+      const kpiInfo = plan?.kpis?.find(k => k.id === kpiId);
+      const kpiTitle = kpiInfo?.title || kpiId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       const kpiValue = Object.values(value)[0];
       const changePct = value.change_pct;
       
-      kpiCards.push(createKPICard(kpiTitle, kpiValue, null, 'number', '', false));
+      // For now, previousValue is null as it's not calculated for custom KPIs yet
+      kpiCards.push(createKPICard(kpiTitle, kpiValue, null, 'integer', '', false));
     }
   });
   
   if (kpiCards.length > 0) {
     const kpiSection = createMetricSection('Key Performance Indicators', 'custom-kpis');
-    kpiSection.innerHTML = `
-      <div class="kpi-grid">
-        ${kpiCards.join('')}
-      </div>
-    `;
+    kpiSection.innerHTML = `<div class="kpi-grid">${kpiCards.join('')}</div>`;
     container.appendChild(kpiSection);
   }
   
   // Render charts
   Object.entries(metrics).forEach(([key, value]) => {
     if (key.startsWith('chart_') && Array.isArray(value) && value.length > 0) {
-      const chartTitle = key.replace('chart_', '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      const chartSection = createMetricSection(chartTitle, key);
-      chartSection.innerHTML = `
+      const chartId = key.substring(6);
+      
+      // Find the chart object in the plan to get the real title and description
+      const chartInfo = plan?.charts?.find(c => c.id === parseInt(chartId, 10));
+      const chartTitle = chartInfo?.title || chartId.replace(/_/g, ' ');
+      const chartDescription = chartInfo?.description || '';
+
+      const chartSection = createMetricSection(chartTitle, key, chartDescription);
+      chartSection.innerHTML += `
         <div class="chart-container">
           <canvas id="${key}-chart"></canvas>
         </div>
@@ -270,9 +279,10 @@ function renderCustomRoleMetrics(metrics, data) {
  * Creates a metric section container
  * @param {string} title - Section title
  * @param {string} id - Section ID
+ * @param {string} description - Optional description for the section
  * @returns {HTMLElement} Section element
  */
-function createMetricSection(title, id) {
+function createMetricSection(title, id, description = '') {
   const section = document.createElement('div');
   section.className = 'metric-section';
   section.id = id;
@@ -281,6 +291,7 @@ function createMetricSection(title, id) {
   header.className = 'metric-section-header';
   header.innerHTML = `
     <h3>${escapeHtml(title)}</h3>
+    ${description ? `<p class="metric-description">${escapeHtml(description)}</p>` : ''}
   `;
   
   section.appendChild(header);

@@ -18,7 +18,6 @@ function initializeDashboard() {
   window.metricsVisualizer = metricsVisualizer;
   
   // Initialize UI components
-  initializeModalListeners();
   initAccordion();
   enhanceKPICards();
   

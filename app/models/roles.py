@@ -37,24 +37,35 @@ def get_role_db_path(role_name: str) -> Path:
     return CUSTOM_DIR / f"{safe}.db"
 
 # Helper to get BQ client from service account
-def get_bq_client(role_name: str):
-    """Initializes a BigQuery client from a service account JSON file."""
-    safe_role_name = "".join(ch for ch in role_name if ch.isalnum() or ch in ("-","_"," ")).strip().replace(" ", "_")
-    sa_path = CUSTOM_DIR / f"{safe_role_name}.sa.json"
-    
-    if not sa_path.exists():
-        logging.warning(f"Service account file not found for role: {role_name}")
-        # Fallback to default credentials if available (e.g., gcloud auth)
+def get_bq_client(role_name: str, sa_info: Optional[Dict[str, Any]] = None):
+    """Initializes a BigQuery client from service account info (dictionary)."""
+    if not sa_info:
+        logging.warning(f"Service account info not provided for role: {role_name}. Falling back to default credentials.")
         try:
+            # Fallback to default credentials if available (e.g., gcloud auth)
             return bigquery.Client()
-        except Exception:
+        except Exception as e:
+            logging.error(f"Failed to create BQ client with default credentials: {e}")
             return None
 
     try:
-        credentials = service_account.Credentials.from_service_account_file(str(sa_path))
+        # Create a sanitized copy for logging, excluding the private key
+        sanitized_sa_info = sa_info.copy()
+        private_key = sanitized_sa_info.pop('private_key', None)
+        
+        logging.info("Attempting to create BigQuery client with the following service account info (private key excluded):")
+        logging.info(json.dumps(sanitized_sa_info, indent=2))
+        
+        if private_key:
+            logging.info("Service account private key is present.")
+            logging.info(f"Private key length: {len(private_key)}")
+        else:
+            logging.warning("Service account private key is MISSING from the provided info.")
+
+        credentials = service_account.Credentials.from_service_account_info(sa_info)
         return bigquery.Client(credentials=credentials, project=credentials.project_id)
     except Exception as e:
-        logging.error(f"Failed to create BQ client from service account file: {e}")
+        logging.error(f"Failed to create BQ client from service account info: {e}")
         return None
 
 
@@ -79,7 +90,7 @@ class CustomRoleManager:
             gcp_project (str): Google Cloud Project ID
             bq_dataset (str): BigQuery dataset name
             bq_tables (List[str]): List of BigQuery table names
-            sa_json (str): Service account JSON (optional)
+            sa_json (str): Service account JSON string (optional).
             
         Returns:
             Dict[str, Any]: Response dictionary with creation status
@@ -97,7 +108,7 @@ class CustomRoleManager:
             "gcp_project": gcp_project, 
             "bq_dataset": bq_dataset, 
             "bq_tables": bq_tables, 
-            "has_sa": bool(sa_json),
+            "has_sa": bool(sa_json.strip()),
             "created_at": datetime.now().isoformat(),
             "total_records": 0,  # Will be updated after import
             "schema_descriptions": {} # Placeholder for BQ metadata
@@ -108,8 +119,15 @@ class CustomRoleManager:
         
         # Optionally stash service account JSON (avoid mixing with repo)
         if sa_json.strip():
-            sa_path = self.custom_dir / f"{role_name.replace(' ','_')}.sa.json"
-            sa_path.write_text(sa_json)
+            try:
+                # Parse the incoming string to validate and format it
+                sa_data = json.loads(sa_json)
+                formatted_sa_json = json.dumps(sa_data, indent=2)
+                
+                sa_path = self.custom_dir / f"{role_name.replace(' ','_')}.sa.json"
+                sa_path.write_text(formatted_sa_json)
+            except json.JSONDecodeError:
+                return {"ok": False, "error": "The provided service account credential was not valid JSON."}
         
         return {"ok": True}
     
@@ -123,32 +141,53 @@ class CustomRoleManager:
         Returns:
             Dict[str, Any]: Response dictionary with import status
         """
+        logging.info(f"Starting import process for role: {role_name}")
         if not role_name:
+            logging.error("Import failed: role_name is missing.")
             return {"ok": False, "error": "Missing role_name"}
-        
-        role_db = get_role_db_path(role_name)
+
         cfg_path = self.custom_dir / f"{role_name.replace(' ','_')}.json"
-        
+        logging.info(f"Looking for config file at: {cfg_path}")
         if not cfg_path.exists():
-            return {"ok": False, "error": "Role not found"}
-        
-        cfg = json.loads(cfg_path.read_text())
-        sa_path = self.custom_dir / f"{role_name.replace(' ','_')}.sa.json"
-        sa_json = sa_path.read_text() if sa_path.exists() else None
-        
-        # Get BigQuery client
+            logging.error(f"Config file not found for role: {role_name}")
+            return {"ok": False, "error": "Role configuration not found."}
+
         try:
-            client = get_bq_client(role_name)
+            cfg = json.loads(cfg_path.read_text())
+            logging.info("Successfully loaded role configuration.")
+        except json.JSONDecodeError:
+            logging.error(f"Failed to parse config file for role: {role_name}")
+            return {"ok": False, "error": "Role configuration file is corrupted."}
+
+        sa_path = self.custom_dir / f"{role_name.replace(' ','_')}.sa.json"
+        sa_info = None
+        if sa_path.exists():
+            logging.info("Service account file found, attempting to load.")
+            try:
+                sa_info = json.loads(sa_path.read_text())
+                logging.info("Successfully loaded service account file.")
+            except json.JSONDecodeError:
+                logging.error(f"Failed to parse service account file for role: {role_name}")
+                return {"ok": False, "error": "Service account file is corrupted and not valid JSON."}
+        else:
+            logging.warning("No service account file found for role.")
+
+        logging.info("Attempting to get BigQuery client...")
+        try:
+            client = get_bq_client(role_name, sa_info)
             if not client:
-                return {"ok": False, "error": "Failed to create BigQuery client. Service account JSON might be missing or invalid."}
+                # The error is already logged inside get_bq_client
+                return {"ok": False, "error": "Failed to create BigQuery client. Please check server logs for details."}
+            logging.info("Successfully obtained BigQuery client.")
         except Exception as e:
+            logging.error(f"An unexpected error occurred while getting BigQuery client: {e}")
             return {"ok": False, "error": f"Failed to initialize BigQuery client: {str(e)}"}
 
         total_records_imported = 0
         schema_descriptions = {}
 
         # Prepare SQLite connection once
-        conn = sqlite3.connect(str(role_db))
+        conn = sqlite3.connect(str(get_role_db_path(role_name)))
         cur = conn.cursor()
 
         # Simple BigQuery->SQLite type mapping
@@ -162,6 +201,7 @@ class CustomRoleManager:
 
         for table_name in cfg.get("bq_tables", []):
             try:
+                logging.info(f"Importing table: {table_name}")
                 # Fetch table and column metadata (descriptions)
                 table_ref = client.get_table(f'{cfg['gcp_project']}.{cfg['bq_dataset']}.{table_name}')
                 schema_descriptions[table_name] = {
@@ -198,9 +238,11 @@ class CustomRoleManager:
                     cur.executemany(insert_sql, batch)
                     conn.commit()
                     total_records_imported += len(batch)
+                logging.info(f"Successfully imported {total_records_imported} records for table {table_name}.")
 
             except Exception as e:
                 conn.rollback()
+                logging.error(f"Error importing table {table_name}: {e}")
                 return {"ok": False, "error": f"Error importing table {table_name}: {str(e)}"}
         
         conn.close()
@@ -213,198 +255,167 @@ class CustomRoleManager:
             # This is not a fatal error, so we just log it and continue
             logging.warning(f"Could not update config file for {role_name}: {str(e)}")
 
+        logging.info(f"Import process finished successfully for role: {role_name}")
         return {"ok": True}
     
     def analyze_role(self, role_name: str) -> Dict[str, Any]:
         """
-        Analyze a custom role's data and generate KPIs and visualizations.
-        
-        Args:
-            role_name (str): Name of the role to analyze
-            
-        Returns:
-            Dict[str, Any]: Response dictionary with analysis results
+        Analyze a custom role's data and generate KPIs and visualizations using a modular, multi-step process.
         """
         if not role_name:
             return {"ok": False, "error": "Missing role_name"}
-        
+
         role_db = get_role_db_path(role_name)
         if not role_db.exists():
             return {"ok": False, "error": "Role DB not found"}
-        
-        # Build comprehensive data analysis for Gemini
+
+        # --- 1. GATHER CONTEXT & PATCH SCHEMA ---
         conn = sqlite3.connect(str(role_db))
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        
-        # Get table schema and sample data (exclude internal app tables)
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-        all_tables = [r[0] for r in cur.fetchall()]
-        
-        # Filter out internal app tables - only analyze actual data tables
+
+        # Patch: Add chart_title column to chart_insights if it doesn't exist
+        try:
+            cur.execute("ALTER TABLE chart_insights ADD COLUMN chart_title TEXT NOT NULL DEFAULT 'Untitled Chart'")
+            conn.commit()
+            logging.info("Patched chart_insights table with chart_title column.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e):
+                raise # Re-raise if it's not the error we expect
+
         internal_tables = {
             'proposed_actions', 'saved_analyses', 'saved_actions', 
             'chart_insights', 'action_notes', 'priority_notes',
             'priority_insights', 'analysis_runs'
         }
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        all_tables = [r[0] for r in cur.fetchall()]
         tables = [t for t in all_tables if t not in internal_tables]
-        
+
         if not tables:
             return {"ok": False, "error": "No data tables found in database"}
-        
+        table_name = tables[0] # Focus on the single imported table
+
         # Load schema descriptions from config file
-        safe_role_name = "".join(ch for ch in role_name if ch.isalnum() or ch in ("-","_"," ")).strip().replace(" ", "_")
-        cfg_path = CUSTOM_DIR / f"{safe_role_name}.json"
-        
+        cfg_path = self.custom_dir / f"{role_name.replace(' ','_')}.json"
         schema_descriptions = {}
         if cfg_path.exists():
             try:
                 cfg = json.loads(cfg_path.read_text())
                 schema_descriptions = cfg.get("schema_descriptions", {})
-            except Exception:
-                pass # Ignore if config can't be read
+            except Exception: pass
 
-        data_analysis = {
-            "role_name": role_name,
-            "schema_descriptions": schema_descriptions,
-            "tables": {}
-        }
-        
-        for table in tables:
-            try:
-                # Get table schema
-                cur.execute(f'PRAGMA table_info("{table}")')
-                columns = [{"name": r[1], "type": r[2], "nullable": not r[3]} for r in cur.fetchall()]
-                
-                # Get row count
-                cur.execute(f'SELECT COUNT(1) as cnt FROM "{table}"')
-                row_count = cur.fetchone()["cnt"]
-                
-                # Get sample data (first 5 rows)
-                cur.execute(f'SELECT * FROM "{table}" LIMIT 5')
-                sample_data = [dict(r) for r in cur.fetchall()]
-                
-                # Get column value distributions for key columns
-                distributions = {}
-                for col in columns[:10]:  # Limit to first 10 columns
-                    col_name = col["name"]
-                    try:
-                        cur.execute(f'SELECT DISTINCT "{col_name}", COUNT(1) as cnt FROM "{table}" GROUP BY "{col_name}" ORDER BY cnt DESC LIMIT 10')
-                        distributions[col_name] = [dict(r) for r in cur.fetchall()]
-                    except Exception:
-                        pass
-                
-                data_analysis["tables"][table] = {
-                    "row_count": row_count,
-                    "columns": columns,
-                    "sample_data": sample_data,
-                    "distributions": distributions
-                }
-            except Exception as e:
-                data_analysis["tables"][table] = {"error": str(e)}
-        
-        conn.close()
-        
-        # Ask Gemini for comprehensive KPI and visualization analysis
+        # Build the data analysis context object
+        data_analysis = {"role_name": role_name, "schema_descriptions": schema_descriptions, "tables": {}}
         try:
-            table_name = list(data_analysis.get("tables", {}).keys())[0]
-            prompt = f"""You are a data analyst bot writing SQLite queries. Your task is to generate a JSON object with KPIs, charts, and insights based STRICTLY on the provided schema for a '{role_name}'.
-
-## Database Schema & Context
-The database has one primary table named `{table_name}`. The detailed schema for this table, including column data types and value distributions, is in the JSON context.
-IMPORTANT: The JSON context also contains `schema_descriptions` with descriptions for the table and each column from BigQuery. Use these descriptions to better understand the data's meaning and business context.
-
-## CRITICAL RULES (Failure to follow will result in errors):
-1.  **Use ONLY the `{table_name}` table and its real columns**: Every query MUST use the exact column names from the `{table_name}` schema. Do NOT invent columns.
-2.  **Quote Column Names**: Column names with spaces or special characters MUST be enclosed in double quotes (e.g., '"Last_Week_This_Year_Sales"').
-3.  **No Hallucination**: Do not assume any columns exist. If the data for a typical KPI (e.g., 'profit') is not available, calculate it from existing columns or do not create the KPI.
-4.  **Valid SQLite ONLY**: All SQL must be 100% valid for SQLite.
-5.  **KPI Formula Definition**: The `formula` for KPIs must be a complete `SELECT` statement that returns a single numeric value (e.g., 'SELECT SUM("Last_Week_This_Year_Sales") FROM pa_sales').
-
-## Output Format
-Return a single JSON object with `kpis`, `charts`, and `insights` keys. Ensure the SQL in `formula` and `query_sql` is correct based on the rules above.
-{{
-  "kpis": [{{
-    "id": "kpi_unique_id", 
-    "title": "KPI Title", 
-    "description": "...", 
-    "formula": "SELECT ...", 
-    "table": "{table_name}"
-  }}],
-  "charts": [{{
-    "id": "chart_unique_id", 
-    "title": "Chart Title", 
-    "type": "bar|line|pie|table", 
-    "description": "...", 
-    "query_sql": "SELECT ..."
-  }}],
-  "insights": ["..."]
-}}
-"""
-            plan = _generate_json_from_model(prompt, json.dumps(data_analysis, ensure_ascii=False, indent=2))
-            
-            # Generate Enhanced Insights for each chart automatically
-            conn = sqlite3.connect(str(role_db))
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-            
-            # Create insights table if it doesn't exist
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS chart_insights (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    chart_id TEXT NOT NULL UNIQUE,
-                    chart_title TEXT NOT NULL,
-                    insights_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-                )
-            """)
-            
-            # Generate insights for each chart
-            charts = plan.get("charts", [])
-            for chart in charts:
-                chart_id = chart.get("id")
-                chart_title = chart.get("title", "Chart")
-                chart_type = chart.get("type", "unknown")
-                query_sql = chart.get("query_sql")
-                
-                if query_sql and chart_id:
-                    try:
-                        # Execute the chart query to get data
-                        cur.execute(query_sql)
-                        chart_data = [dict(r) for r in cur.fetchall()]
-                        
-                        if chart_data:
-                            # Generate insights using Gemini
-                            insights = generate_chart_insights(chart_title, chart_data, chart_type)
-                            
-                            if insights and chart_id:
-                                # Store insights in the database
-                                cur.execute("""
-                                    INSERT INTO chart_insights (chart_id, chart_title, insights_json, updated_at)
-                                    VALUES (?, ?, ?, datetime('now'))
-                                    ON CONFLICT(chart_id) DO UPDATE SET
-                                        insights_json = excluded.insights_json,
-                                        chart_title = excluded.chart_title,
-                                        updated_at = excluded.updated_at;
-                                """, (chart_id, chart_title, json.dumps(insights)))
-                                
-                    except Exception as e:
-                        print(f"Failed to generate insights for chart {chart_id}: {e}")
-                        # Don't fail the entire process if insights fail for one chart
-                        continue
-            
-            conn.commit()
-            conn.close()
-            
+            cur.execute(f'PRAGMA table_info("{table_name}")')
+            columns = [{"name": r[1], "type": r[2], "nullable": not r[3]} for r in cur.fetchall()]
+            column_names_list = [c['name'] for c in columns]
+            cur.execute(f'SELECT COUNT(1) as cnt FROM "{table_name}"')
+            row_count = cur.fetchone()["cnt"]
+            cur.execute(f'SELECT * FROM "{table_name}" LIMIT 5')
+            sample_data = [dict(r) for r in cur.fetchall()]
+            data_analysis["tables"][table_name] = {
+                "row_count": row_count,
+                "columns": columns,
+                "sample_data": sample_data
+            }
         except Exception as e:
-            return {"ok": False, "error": str(e)}
+            conn.close()
+            return {"ok": False, "error": f"Failed to analyze table schema: {e}"}
         
-        # Save plan
+        context_json = json.dumps(data_analysis, ensure_ascii=False, indent=2)
+        logging.info(f"--- PROMPT CONTEXT ---\n{context_json}")
+
+        try:
+            # --- 2. STEP 1: Identify Key Concepts ---
+            concepts_prompt = f"""You are a data analyst. Analyze the schema and data for the table '{table_name}'. 
+            Identify the key business concepts, primary metrics, and important dimensions available in this table. 
+            Return a JSON object with three keys: 'key_concepts' (list of strings), 'key_metrics' (list of strings), and 'key_dimensions' (list of strings)."""
+            concepts = _generate_json_from_model(concepts_prompt, context_json)
+
+            # --- 3. STEP 2: Generate KPIs (with dynamic examples) ---
+            numeric_col_example = "some_column"
+            for col in reversed(column_names_list):
+                if any(kw in col.lower() for kw in ['sales', 'amount', 'price', 'qty', 'count']):
+                    numeric_col_example = col
+                    break
+            else:
+                if column_names_list:
+                    numeric_col_example = column_names_list[-1]
+
+            kpis_prompt = f"""You are a SQL expert generating SQLite queries for a table named '{table_name}'.
+            The available columns are: {json.dumps(column_names_list)}.
+            CRITICAL RULE: You MUST use ONLY these column names in your queries. Any other column name is invalid.
+            For example, a correct query is 'SELECT SUM("{numeric_col_example}") FROM "{table_name}"'. An INCORRECT query is 'SELECT SUM(revenue) FROM "{table_name}"' because 'revenue' is not in the list of available columns.
+            Given these rules, generate a list of relevant KPIs. Each KPI must be a JSON object with 'id', 'title', 'description', and a 'formula'. The 'formula' must be a complete, valid SQLite SELECT statement."""
+            kpis_response = _generate_json_from_model(kpis_prompt, context_json)
+            kpis = kpis_response.get("kpis", []) if isinstance(kpis_response, dict) else kpis_response
+
+            # --- 4. STEP 3: Generate Charts (with dynamic examples) ---
+            text_col_example = "some_category"
+            for col in column_names_list:
+                if any(kw in col.lower() for kw in ['name', 'area', 'category', 'product', 'region']):
+                    text_col_example = col
+                    break
+            else:
+                if column_names_list:
+                    text_col_example = column_names_list[0]
+
+            charts_prompt = f"""You are a SQL expert generating SQLite queries for a table named '{table_name}'.
+            The available columns are: {json.dumps(column_names_list)}.
+            CRITICAL RULE: You MUST use ONLY these column names in your queries. Any other column name is invalid.
+            For example, a correct query is 'SELECT "{text_col_example}", SUM("{numeric_col_example}") FROM "{table_name}" GROUP BY "{text_col_example}"'. An INCORRECT query is 'SELECT product, SUM(sales) FROM "{table_name}" GROUP BY product' because 'product' and 'sales' are not in the list of available columns.
+            Given these rules, generate a list of relevant visualizations. Each chart must be a JSON object with 'id', 'title', 'description', a 'type' ('bar', 'line', 'pie', or 'table'), and a 'query_sql'. The 'query_sql' must be a complete, valid SQLite query."""
+            charts_response = _generate_json_from_model(charts_prompt, context_json)
+            charts = charts_response.get("charts", []) if isinstance(charts_response, dict) else charts_response
+
+            # --- 5. VALIDATE & ENHANCE ---
+            validated_kpis = []
+            for kpi in kpis:
+                try:
+                    cur.execute(kpi['formula'])
+                    cur.fetchone()
+                    kpi['table'] = table_name # Add table name for frontend
+                    validated_kpis.append(kpi)
+                except Exception as e:
+                    logging.warning(f"Discarding invalid KPI '{kpi.get('title')}': {e}")
+
+            validated_charts = []
+            for chart in charts:
+                try:
+                    cur.execute(chart['query_sql'])
+                    chart_data = [dict(r) for r in cur.fetchall()]
+                    if chart_data:
+                        validated_charts.append(chart)
+                        # Generate and store enhanced insights for the valid chart
+                        insights = generate_chart_insights(chart.get('title'), chart_data, chart.get('type'))
+                        if insights and chart.get('id'):
+                            cur.execute("""CREATE TABLE IF NOT EXISTS chart_insights (id INTEGER PRIMARY KEY, chart_id TEXT NOT NULL UNIQUE, chart_title TEXT, insights_json TEXT, created_at TEXT, updated_at TEXT)""")
+                            cur.execute("""INSERT INTO chart_insights (chart_id, chart_title, insights_json, updated_at) VALUES (?, ?, ?, datetime('now'))
+                                       ON CONFLICT(chart_id) DO UPDATE SET insights_json=excluded.insights_json, chart_title=excluded.chart_title, updated_at=excluded.updated_at;""", 
+                                       (chart['id'], chart['title'], json.dumps(insights)))
+                except Exception as e:
+                    logging.warning(f"Discarding invalid chart '{chart.get('title')}': {e}")
+
+            # --- 6. FINALIZE PLAN ---
+            final_plan = {
+                "kpis": validated_kpis,
+                "charts": validated_charts,
+                "insights": concepts.get('key_concepts', []) if isinstance(concepts, dict) else []
+            }
+            conn.commit()
+
+        except Exception as e:
+            return {"ok": False, "error": f"Failed during analysis generation: {str(e)}"}
+        finally:
+            conn.close()
+
+        # Save the final validated plan
         plan_path = self.custom_dir / f"{role_name.replace(' ','_')}.plan.json"
-        plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2))
+        plan_path.write_text(json.dumps(final_plan, ensure_ascii=False, indent=2))
         
-        return {"ok": True, "plan": plan}
+        return {"ok": True, "plan": final_plan}
     
     def get_role_config(self, role_name: str) -> Optional[Dict[str, Any]]:
         """Gets the configuration for a single role."""

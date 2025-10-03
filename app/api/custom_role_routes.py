@@ -40,12 +40,22 @@ def api_new_role_create():
 @custom_role_bp.route("/api/new_role/import", methods=["POST"])
 def api_new_role_import():
     """Import data from BigQuery into a custom role's database."""
-    payload = request.get_json(force=True)
-    role_name = (payload.get("role_name") or "").strip()
-    
-    manager = CustomRoleManager()
-    result = manager.import_role_data(role_name)
-    return jsonify(result)
+    logging.info("--- ENTERING /api/new_role/import ---")
+    try:
+        payload = request.get_json(force=True)
+        role_name = (payload.get("role_name") or "").strip()
+        logging.info(f"Role name from payload: {role_name}")
+        
+        manager = CustomRoleManager()
+        logging.info("CustomRoleManager instantiated.")
+        
+        result = manager.import_role_data(role_name)
+        logging.info(f"Result from import_role_data: {result}")
+        
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f"--- UNHANDLED EXCEPTION IN /api/new_role/import ---: {e}", exc_info=True)
+        return jsonify({"ok": False, "error": f"A critical server error occurred: {str(e)}"}), 500
 
 
 @custom_role_bp.route("/api/new_role/analyze", methods=["POST"])
