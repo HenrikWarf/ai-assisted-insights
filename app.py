@@ -16,13 +16,14 @@ app = Flask(__name__, static_folder=str(STATIC_DIR))
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 
 # Register Blueprints
-from app.api import auth_bp, metrics_bp, custom_role_bp, analysis_bp, priority_insights_bp, action_bp
+from app.api import auth_bp, metrics_bp, custom_role_bp, analysis_bp, priority_insights_bp, action_bp, kpi_bp
 app.register_blueprint(auth_bp)
 app.register_blueprint(metrics_bp)
 app.register_blueprint(custom_role_bp)
 app.register_blueprint(analysis_bp)
 app.register_blueprint(priority_insights_bp)
 app.register_blueprint(action_bp)
+app.register_blueprint(kpi_bp)
 
 
 def get_db_connection():

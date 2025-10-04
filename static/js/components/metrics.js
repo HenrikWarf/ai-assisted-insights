@@ -237,8 +237,27 @@ function renderCustomRoleMetrics(metrics, data) {
       const kpiValue = Object.values(value)[0];
       const changePct = value.change_pct;
       
+      // Determine format type
+      let formatType = 'integer';
+      let unit = '';
+      const titleLower = kpiTitle.toLowerCase();
+      const sqlCalculatesPercentage = kpiInfo?.formula && kpiInfo.formula.includes('* 100');
+      
+      if (titleLower.includes('rate') || titleLower.includes('percent') || titleLower.includes('%')) {
+        if (sqlCalculatesPercentage) {
+          // SQL already multiplied by 100, just add % symbol
+          formatType = 'decimal';
+          unit = '%';
+        } else {
+          // SQL returns decimal, need to format as percentage
+          formatType = 'percentage';
+        }
+      } else if (titleLower.includes('value') || titleLower.includes('revenue') || titleLower.includes('sales') || titleLower.includes('profit')) {
+        formatType = 'currency';
+      }
+      
       // For now, previousValue is null as it's not calculated for custom KPIs yet
-      kpiCards.push(createKPICard(kpiTitle, kpiValue, null, 'integer', '', false));
+      kpiCards.push(createKPICard(kpiTitle, kpiValue, null, formatType, unit, false));
     }
   });
   

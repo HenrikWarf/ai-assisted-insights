@@ -6,6 +6,19 @@
 // Global variables
 let metricsVisualizer = null;
 let currentAnalysis = null;
+let kpiManager = null;
+
+/**
+ * Reload metrics - exposed globally for KPI manager
+ */
+window.loadMetrics = async function() {
+  const isCustomRole = !!window.__CUSTOM_ROLE_NAME__;
+  if (isCustomRole) {
+    await loadCustomRoleMetrics();
+  } else {
+    await loadBuiltInRoleMetrics();
+  }
+};
 
 /**
  * Initializes the dashboard application
@@ -13,10 +26,23 @@ let currentAnalysis = null;
 function initializeDashboard() {
   console.log('Initializing dashboard...');
   
+  // Set default user immediately as fallback
+  const loggedInUserEl = document.getElementById('logged-in-user');
+  if (loggedInUserEl && loggedInUserEl.textContent === 'Loading...') {
+    loggedInUserEl.textContent = 'Henrik Warfvinge';
+  }
+  
   // Initialize the metrics visualizer
   metricsVisualizer = new MetricsVisualizer();
   window.metricsVisualizer = metricsVisualizer;
   window.loadCustomRoleMetrics = loadCustomRoleMetrics;
+  
+  // Initialize KPI Manager
+  if (typeof KPIManager !== 'undefined') {
+    kpiManager = new KPIManager();
+    window.kpiManager = kpiManager;
+    kpiManager.init();
+  }
   
   // Initialize UI components
   initAccordion();
@@ -64,26 +90,7 @@ function setupEventListeners() {
     addCustomVizBtn.addEventListener('click', () => openCustomVizModal());
   }
   
-  // Event delegation for dynamically generated saved analysis buttons
-  document.addEventListener('click', (e) => {
-    // View saved analysis button
-    if (e.target.closest('.btn-view-saved-analysis')) {
-      const analysisItem = e.target.closest('.saved-analysis-item');
-      if (analysisItem) {
-        const analysisId = analysisItem.getAttribute('data-analysis-id');
-        viewSavedAnalysis(analysisId);
-      }
-    }
-    
-    // View saved action button
-    if (e.target.closest('.btn-view-saved-action')) {
-      const actionItem = e.target.closest('.saved-action-list-item');
-      if (actionItem) {
-        const actionId = actionItem.getAttribute('data-action-id');
-        viewSavedAction(actionId);
-      }
-    }
-  });
+  // Event delegation is now handled via onclick attributes in the HTML
   
   // Set up mutation observers for dynamic content
   setupMutationObservers();
@@ -177,6 +184,9 @@ async function loadSavedAnalyses() {
     if (result.success && result.analyses) {
       renderSavedAnalyses(result.analyses);
     }
+    
+    // Update workspace metadata after loading
+    await updateWorkspaceMetadata();
   } catch (error) {
     console.error('Error loading saved analyses:', error);
     showNotification('Failed to load saved analyses', 'error');
@@ -206,6 +216,96 @@ async function loadSavedActions() {
 }
 
 /**
+ * Updates the workspace metadata in the accordion header
+ */
+async function updateWorkspaceMetadata() {
+  try {
+    // Fetch both saved analyses and actions
+    const [analysesResponse, actionsResponse] = await Promise.all([
+      fetch('/api/priority-insights/saved'),
+      fetch('/api/actions/saved')
+    ]);
+    
+    const analyses = analysesResponse.ok ? await analysesResponse.json() : { analyses: [] };
+    const actions = actionsResponse.ok ? await actionsResponse.json() : { actions_by_priority: {} };
+    
+    const analysesList = analyses.analyses || [];
+    const actionsByPriority = actions.actions_by_priority || {};
+    
+    // Count total saved items
+    const totalAnalyses = analysesList.length;
+    const totalActions = Object.values(actionsByPriority).reduce((sum, arr) => sum + arr.length, 0);
+    
+    // Count insights (analyses with insights_content)
+    const withInsights = analysesList.filter(a => a.insights_content).length;
+    
+    // Count total notes (this would require additional API calls, so we'll estimate)
+    const totalNotes = 0; // Placeholder - would need to fetch notes for each analysis
+    
+    // Find last activity
+    const allDates = [
+      ...analysesList.map(a => new Date(a.updated_ts || a.created_ts)),
+      ...Object.values(actionsByPriority).flat().map(a => new Date(a.updated_ts || a.saved_ts))
+    ];
+    const lastActivity = allDates.length > 0 
+      ? new Date(Math.max(...allDates))
+      : null;
+    
+    // Update UI elements - show only saved priority analyses count
+    const workspaceCount = document.getElementById('workspace-count');
+    if (workspaceCount) {
+      workspaceCount.textContent = `${totalAnalyses} saved`;
+    }
+    
+    const insightsCount = document.getElementById('insights-count');
+    if (insightsCount) {
+      insightsCount.textContent = `${withInsights} with insights`;
+    }
+    
+    const notesTotal = document.getElementById('workspace-notes-total');
+    if (notesTotal) {
+      notesTotal.textContent = `${totalNotes} notes`;
+    }
+    
+    const lastActivityEl = document.getElementById('workspace-last-activity');
+    if (lastActivityEl && lastActivity) {
+      lastActivityEl.textContent = formatRelativeTime(lastActivity);
+    }
+  } catch (error) {
+    console.error('Error updating workspace metadata:', error);
+  }
+}
+
+/**
+ * Formats a date to relative time (e.g., "2 hours ago", "3 days ago")
+ * @param {Date} date - The date to format
+ * @returns {string} - Formatted relative time string
+ */
+function formatRelativeTime(date) {
+  const now = new Date();
+  const diffMs = now - date;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffSecs < 60) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+  }
+  if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `${months} month${months > 1 ? 's' : ''} ago`;
+  }
+  const years = Math.floor(diffDays / 365);
+  return `${years} year${years > 1 ? 's' : ''} ago`;
+}
+
+/**
  * Renders the list of saved analyses into the DOM.
  * @param {Array} analyses - The array of saved analysis objects.
  */
@@ -220,13 +320,33 @@ function renderSavedAnalyses(analyses) {
     return;
   }
 
-  container.innerHTML = analyses.map(analysis => `
-    <div class="saved-analysis-item" data-analysis-id="${analysis.id}">
-      <h4 class="font-bold">${escapeHtml(analysis.priority_title)}</h4>
-      <p class="text-sm text-gray-600">Saved on ${new Date(analysis.created_ts).toLocaleDateString()}</p>
-      <button class="btn-secondary btn-sm mt-2 btn-view-saved-analysis">View</button>
-    </div>
-  `).join('');
+  container.innerHTML = analyses.map(analysis => {
+    const gridTypeBadge = analysis.grid_type === 'short-term' 
+      ? '<span class="badge badge-short-term">🚀 Short Term</span>' 
+      : '<span class="badge badge-long-term">🎯 Long Term</span>';
+    
+    const hasInsights = analysis.insights_content 
+      ? '<span class="badge badge-success">✓ Insights</span>' 
+      : '<span class="badge badge-warning">⚠ No Insights</span>';
+    
+    const lastUpdated = formatRelativeTime(new Date(analysis.updated_ts || analysis.created_ts));
+    
+    return `
+      <div class="saved-analysis-item clickable" data-analysis-id="${analysis.id}" onclick="viewSavedAnalysis(${analysis.id})">
+        <div class="saved-analysis-header">
+          <h4 class="saved-analysis-title">${escapeHtml(analysis.priority_title)}</h4>
+          <button class="btn-delete-icon" onclick="event.stopPropagation(); deleteSavedAnalysis(${analysis.id})" title="Delete">
+            🗑️
+          </button>
+        </div>
+        <div class="saved-analysis-metadata">
+          ${gridTypeBadge}
+          ${hasInsights}
+          <span class="badge badge-muted">📅 ${lastUpdated}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 /**
@@ -247,26 +367,171 @@ function renderSavedActions(actionsByPriority) {
     return;
   }
 
-  container.innerHTML = priorities.map(priorityTitle => `
+  container.innerHTML = priorities.map(priorityTitle => {
+    const actions = actionsByPriority[priorityTitle];
+    return `
     <div class="saved-action-group">
-      <h3 class="priority-group-title">${escapeHtml(priorityTitle)}</h3>
+      <h3 class="priority-group-title">📋 ${escapeHtml(priorityTitle)}</h3>
       <div class="saved-action-list">
-        ${actionsByPriority[priorityTitle].map(action => `
-          <div class="saved-action-list-item" data-action-id="${action.action_id}">
-            <div class="action-list-item-main">
+        ${actions.map(action => {
+          const statusIcon = {
+            'pending': '⏳',
+            'in_progress': '🔄',
+            'completed': '✅',
+            'blocked': '🚫'
+          }[action.status] || '⏳';
+          
+          const statusClass = {
+            'pending': 'status-pending',
+            'in_progress': 'status-in-progress',
+            'completed': 'status-completed',
+            'blocked': 'status-blocked'
+          }[action.status] || 'status-pending';
+          
+          const lastUpdated = formatRelativeTime(new Date(action.updated_ts || action.saved_ts));
+          
+          const effortBadge = action.estimated_effort 
+            ? `<span class="badge badge-effort" title="Estimated Effort">💪 ${escapeHtml(action.estimated_effort)}</span>`
+            : '';
+          
+          const impactBadge = action.estimated_impact
+            ? `<span class="badge badge-impact" title="Estimated Impact">🎯 ${escapeHtml(action.estimated_impact)}</span>`
+            : '';
+          
+          return `
+          <div class="saved-action-list-item clickable" data-action-id="${action.action_id}" onclick="viewSavedAction('${action.action_id}')">
+            <div class="action-list-item-header">
               <span class="action-list-item-title">${escapeHtml(action.action_title)}</span>
-              <span class="action-list-item-status status-${action.status}">${escapeHtml(action.status)}</span>
+              <div class="action-list-item-actions">
+                <button class="btn-icon btn-delete-icon" onclick="event.stopPropagation(); deleteSavedAction('${action.action_id}')" title="Delete Action">
+                  🗑️
+                </button>
+              </div>
             </div>
-            <div class="action-list-item-actions">
-               <button class="btn-icon btn-view-saved-action" title="View Details">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </button>
+            <div class="action-list-item-meta">
+              <span class="badge ${statusClass}">${statusIcon} ${escapeHtml(action.status.replace('_', ' '))}</span>
+              ${effortBadge}
+              ${impactBadge}
+              <span class="badge badge-muted">📅 ${lastUpdated}</span>
             </div>
           </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
+}
+
+/**
+ * Deletes a saved analysis
+ * @param {number} analysisId - ID of the saved analysis to delete
+ */
+async function deleteSavedAnalysis(analysisId) {
+  if (!confirm('Are you sure you want to delete this saved priority workspace? This action cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/priority-insights/saved/${analysisId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    if (result.success) {
+      showNotification('Priority workspace deleted successfully', 'success');
+      // Reload the saved analyses list
+      await loadSavedAnalyses();
+      await updateWorkspaceMetadata();
+    } else {
+      throw new Error('Failed to delete priority workspace');
+    }
+  } catch (error) {
+    console.error('Error deleting saved analysis:', error);
+    showNotification('Failed to delete priority workspace', 'error');
+  }
+}
+
+/**
+ * Deletes a saved action
+ * @param {string} actionId - ID of the saved action to delete
+ */
+async function deleteSavedAction(actionId) {
+  if (!confirm('Are you sure you want to delete this saved action? This action cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/actions/saved/${actionId}`, {
+      method: 'DELETE'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    if (result.success) {
+      showNotification('Action deleted successfully', 'success');
+      // Reload the saved actions list
+      await loadSavedActions();
+      await updateWorkspaceMetadata();
+    } else {
+      throw new Error('Failed to delete action');
+    }
+  } catch (error) {
+    console.error('Error deleting saved action:', error);
+    showNotification('Failed to delete action', 'error');
+  }
+}
+
+/**
+ * Show a notification message to the user
+ * @param {string} message - The message to display
+ * @param {string} type - The type of notification ('success', 'error', 'info', 'warning')
+ */
+function showNotification(message, type = 'info') {
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    font-weight: 500;
+    animation: slideIn 0.3s ease-out;
+  `;
+
+  // Set colors based on type
+  const colors = {
+    success: { bg: '#10b981', text: '#ffffff' },
+    error: { bg: '#ef4444', text: '#ffffff' },
+    warning: { bg: '#f59e0b', text: '#ffffff' },
+    info: { bg: '#3b82f6', text: '#ffffff' }
+  };
+
+  const color = colors[type] || colors.info;
+  notification.style.backgroundColor = color.bg;
+  notification.style.color = color.text;
+
+  document.body.appendChild(notification);
+
+  // Remove after 4 seconds
+  setTimeout(() => {
+    notification.style.animation = 'slideOut 0.3s ease-in';
+    setTimeout(() => {
+      document.body.removeChild(notification);
+    }, 300);
+  }, 4000);
 }
 
 /**
@@ -275,7 +540,7 @@ function renderSavedActions(actionsByPriority) {
  */
 async function viewSavedAnalysis(analysisId) {
   try {
-    console.log('Viewing saved analysis:', analysisId);
+    console.log('[Dashboard] Viewing saved analysis:', analysisId);
     
     // Fetch the saved analysis data
     const response = await fetch(`/api/priority-insights/saved/${analysisId}`);
@@ -284,21 +549,60 @@ async function viewSavedAnalysis(analysisId) {
     }
     
     const result = await response.json();
+    console.log('[Dashboard] Fetched analysis result:', result);
+    
     if (!result.success || !result.analysis) {
       throw new Error('Failed to load analysis data');
     }
     
     const analysis = result.analysis;
+    console.log('[Dashboard] Analysis data:', { 
+      id: analysis.id,
+      priority_id: analysis.priority_id, 
+      grid_type: analysis.grid_type,
+      has_insights: !!analysis.insights_content,
+      has_actions: !!analysis.actions_json
+    });
+    
+    // Parse priority_data if it's a JSON string
+    let priorityData = analysis.priority_data;
+    if (typeof priorityData === 'string') {
+      try {
+        priorityData = JSON.parse(priorityData);
+      } catch (e) {
+        console.error('Error parsing priority_data:', e);
+        priorityData = {
+          title: analysis.priority_title || 'Untitled Priority',
+          why: '',
+          category: 'general'
+        };
+      }
+    }
+    
+    // Ensure priority_data has required fields
+    if (!priorityData || typeof priorityData !== 'object') {
+      priorityData = {
+        title: analysis.priority_title || 'Untitled Priority',
+        why: '',
+        category: 'general'
+      };
+    }
+    
+    console.log('[Dashboard] Opening modal with:', { 
+      priorityData, 
+      priority_id: analysis.priority_id, 
+      grid_type: analysis.grid_type 
+    });
     
     // Open the Priority Explore Modal with the saved data
     if (window.priorityExploreModal) {
-      window.priorityExploreModal.open(analysis.priority_data, analysis.priority_id, analysis.grid_type);
+      window.priorityExploreModal.open(priorityData, analysis.priority_id, analysis.grid_type);
     } else {
       console.error('PriorityExploreModal not initialized');
       showNotification('Modal not available', 'error');
     }
   } catch (error) {
-    console.error('Error viewing saved analysis:', error);
+    console.error('[Dashboard] Error viewing saved analysis:', error);
     showNotification('Failed to load saved analysis', 'error');
   }
 }
@@ -326,7 +630,12 @@ async function viewSavedAction(actionId) {
     
     // Open the Explore Action Modal with the saved data
     if (window.exploreActionModal) {
-      window.exploreActionModal.open(action.action_data, action.priority_data, action.priority_id, action.grid_type);
+      window.exploreActionModal.open(
+        action.action_data, 
+        action.priority_data, 
+        action.priority_id, 
+        action.grid_type
+      );
     } else {
       console.error('ExploreActionModal not initialized');
       showNotification('Modal not available', 'error');
@@ -407,8 +716,16 @@ async function loadCustomRoleMetrics() {
     // Render custom role metrics
     renderCustomRoleMetrics(data.metrics, data);
     
-    // Render KPI grid
-    if (metricsVisualizer) {
+    // Render enhanced KPI cards
+    if (kpiManager && data.plan && data.plan.kpis && data.plan.kpis.length > 0) {
+      // Show Add KPI button for custom roles
+      const addKPIBtn = document.getElementById('btn-add-kpi');
+      if (addKPIBtn) {
+        addKPIBtn.style.display = 'flex';
+      }
+      kpiManager.renderEnhancedKPICards(data.metrics, data.plan);
+    } else if (metricsVisualizer) {
+      // Fallback to regular KPI rendering for built-in roles
       metricsVisualizer.renderKPIGrid(data.role, data.metrics);
     }
     
@@ -474,6 +791,18 @@ async function triggerAnalysis() {
     
     // After analysis is complete, load and render the latest analysis results
     await loadLatestAnalysis();
+    
+    // Update the "Last analysis" metadata in the top bar
+    const lastAnalysisEl = document.getElementById('last-analysis');
+    if (lastAnalysisEl) {
+      const now = new Date();
+      lastAnalysisEl.textContent = now.toLocaleString();
+    }
+    
+    // Update the priorities accordion metadata
+    if (window.accordionMetadataManager) {
+      await window.accordionMetadataManager.updatePrioritiesMetadata();
+    }
     
     showNotification('Analysis complete! Priority insights generated.', 'success');
 
@@ -544,6 +873,13 @@ async function loadLatestAnalysis() {
     if (result.analysis) {
       currentAnalysis = result.analysis;
       renderAnalysisResults(result.analysis);
+      
+      // Update the "Last analysis" metadata in the top bar
+      const lastAnalysisEl = document.getElementById('last-analysis');
+      if (lastAnalysisEl && result.analysis.created_ts) {
+        const analysisDate = new Date(result.analysis.created_ts);
+        lastAnalysisEl.textContent = analysisDate.toLocaleString();
+      }
     }
     
   } catch (error) {

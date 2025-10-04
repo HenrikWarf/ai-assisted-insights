@@ -52,7 +52,7 @@ class ExploreActionModal {
                             <button class="tab-btn" data-tab="notes">📝 Notes</button>
                         </div>
                         
-                        <div class="tab-content">
+                        <div class="tab-panels-container">
                             <!-- Context Tab -->
                             <div id="tab-context" class="tab-panel active">
                                 <div class="context-header">
@@ -685,10 +685,16 @@ class ExploreActionModal {
 
             if (response.ok) {
                 this.updateSaveButtonState(true); // Indicate saved
-                this.showSuccessMessage('Action saved successfully!');
+                this.showSuccessMessage('Action saved to workspace!');
                 
+                // Reload saved actions in dashboard
                 if (typeof loadSavedActions === 'function') {
-                    loadSavedActions();
+                    await loadSavedActions();
+                }
+                
+                // Update workspace metadata
+                if (typeof updateWorkspaceMetadata === 'function') {
+                    updateWorkspaceMetadata();
                 }
             } else {
                 this.updateSaveButtonState(false); // Re-enable save button on error
@@ -771,20 +777,20 @@ class ExploreActionModal {
         if (isSaving) {
             saveBtn.innerHTML = '⏳ Saving...';
             saveBtn.disabled = true;
-            saveBtn.style.background = 'var(--color-background-muted)';
-            saveBtn.style.color = 'var(--color-text-muted)';
+            saveBtn.style.background = '#e5e7eb';
+            saveBtn.style.color = '#6b7280';
             saveBtn.title = 'Saving action...';
         } else if (isSaved) {
             saveBtn.innerHTML = '✅ Saved';
             saveBtn.disabled = true;
-            saveBtn.style.background = 'var(--color-success-light)';
-            saveBtn.style.color = 'var(--color-success-dark)';
+            saveBtn.style.background = '#d1fae5';
+            saveBtn.style.color = '#065f46';
             saveBtn.title = 'Action is saved to workspace';
         } else {
             saveBtn.innerHTML = '💾 Save';
             saveBtn.disabled = false;
-            saveBtn.style.background = 'var(--color-primary)';
-            saveBtn.style.color = 'white';
+            saveBtn.style.background = '#667eea';
+            saveBtn.style.color = '#ffffff';
             saveBtn.title = 'Save this action to your workspace';
         }
     }

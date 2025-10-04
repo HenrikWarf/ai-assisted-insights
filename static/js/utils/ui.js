@@ -12,8 +12,13 @@ function updateMetadata(data) {
     
     // Update logged in user
     const loggedInUserEl = document.getElementById('logged-in-user');
-    if (loggedInUserEl && data.user) {
-      loggedInUserEl.textContent = data.user;
+    if (loggedInUserEl) {
+      // Always use Henrik Warfvinge, ignore whatever the API returns
+      const userName = 'Henrik Warfvinge';
+      console.log('[updateMetadata] Setting user to:', userName, '(data.user was:', data.user, ')');
+      loggedInUserEl.textContent = userName;
+    } else {
+      console.warn('[updateMetadata] Element #logged-in-user not found');
     }
     
     // Update data freshness

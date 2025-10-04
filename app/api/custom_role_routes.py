@@ -340,7 +340,7 @@ def api_custom_role_metrics():
         "metrics": metrics, 
         "plan": plan_data,
         "metadata": role_metadata,
-        "user": session.get("user", "Unknown User")
+        "user": session.get("user", "Henrik Warfvinge")
     })
 
 

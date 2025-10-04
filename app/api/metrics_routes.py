@@ -78,7 +78,7 @@ def api_metrics():
     
     role = session["role"]
     data = build_metrics_for_role(role)
-    data["user"] = session.get("user", "Unknown User")
+    data["user"] = session.get("user", "Henrik Warfvinge")
     return jsonify(data)
 
 

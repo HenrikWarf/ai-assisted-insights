@@ -202,9 +202,9 @@ def api_save_action():
         cursor.execute("""
             INSERT OR REPLACE INTO saved_actions (
                 action_id, priority_id, grid_type, action_title, action_description,
-                status, estimated_effort, estimated_impact, priority_level,
+                status, estimated_effort, estimated_impact,
                 gemini_context, next_steps
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             proposed_action['action_id'],
             proposed_action['priority_id'],
@@ -214,7 +214,6 @@ def api_save_action():
             'pending',
             action_json.get('estimated_effort'),
             action_json.get('estimated_impact'),
-            action_json.get('priority_level'),
             proposed_action['gemini_context'],
             proposed_action['next_steps']
         ))
@@ -277,6 +276,68 @@ def api_get_saved_actions():
         return jsonify({"error": "Failed to get saved actions"}), 500
 
 
+@action_bp.route('/api/actions/saved/<action_id>', methods=['GET'])
+def api_get_saved_action(action_id):
+    """Get a specific saved action from the role-specific DB."""
+    user_role = _get_user_role()
+    if not user_role:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        conn = get_role_db_connection(user_role)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT 
+                sa.*,
+                COALESCE(san.priority_title, 'Priority ' || sa.priority_id) as priority_title,
+                san.priority_data
+            FROM saved_actions sa
+            LEFT JOIN saved_analyses san ON sa.priority_id = san.priority_id AND sa.grid_type = san.grid_type
+            WHERE sa.action_id = ?
+        """, (action_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return jsonify({"error": "Action not found"}), 404
+        
+        action = dict(row)
+        
+        # Parse JSON fields
+        if action.get('priority_data'):
+            try:
+                action['priority_data'] = json.loads(action['priority_data'])
+            except:
+                action['priority_data'] = {}
+        else:
+            action['priority_data'] = {
+                'title': action.get('priority_title', 'Unknown Priority'),
+                'why': ''
+            }
+        
+        # Construct action_data for modal
+        action['action_data'] = {
+            'action_id': action['action_id'],
+            'action_title': action['action_title'],
+            'action_description': action['action_description'],
+            'priority_level': action.get('priority_level'),
+            'estimated_effort': action.get('estimated_effort'),
+            'estimated_impact': action.get('estimated_impact'),
+            'gemini_context': action.get('gemini_context'),
+            'next_steps': action.get('next_steps'),
+            'status': action.get('status'),
+            'source_table': 'saved_actions'
+        }
+        
+        return jsonify({"success": True, "action": action})
+        
+    except Exception as e:
+        logger.error(f"Error getting saved action: {e}")
+        return jsonify({"error": "Failed to get action"}), 500
+
+
 @action_bp.route('/api/actions/saved/<action_id>', methods=['DELETE'])
 def api_delete_saved_action(action_id):
     """Delete a saved action from the role-specific DB."""
@@ -287,18 +348,21 @@ def api_delete_saved_action(action_id):
     try:
         conn = get_role_db_connection(user_role)
         cursor = conn.cursor()
-
-        cursor.execute("DELETE FROM saved_actions WHERE action_id = ?", (action_id,))
-        success = cursor.rowcount > 0
         
+        # Check if the action exists
+        cursor.execute("SELECT action_id FROM saved_actions WHERE action_id = ?", (action_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "Action not found"}), 404
+        
+        # Delete the action
+        cursor.execute("DELETE FROM saved_actions WHERE action_id = ?", (action_id,))
         conn.commit()
         conn.close()
         
-        if success:
-            return jsonify({"success": True, "message": "Action deleted successfully"})
-        else:
-            return jsonify({"error": "Action not found"}), 404
-            
+        logger.info(f"Deleted saved action {action_id} for role {user_role}")
+        return jsonify({"success": True, "message": "Action deleted successfully"})
+        
     except Exception as e:
         logger.error(f"Error deleting saved action: {e}")
         return jsonify({"error": "Failed to delete action"}), 500
@@ -578,8 +642,8 @@ def api_ask_ai_assistant(action_id):
         })
         
     except Exception as e:
-        logger.error(f"Error with AI assistant: {e}")
-        return jsonify({"error": "Failed to get AI response"}), 500
+        logger.error(f"Error with AI assistant: {e}", exc_info=True)
+        return jsonify({"error": f"Failed to get AI response: {str(e)}"}), 500
 
 
 @action_bp.route('/api/actions/<action_id>/ai-assistant/<conversation_id>', methods=['DELETE'])
@@ -647,10 +711,13 @@ def _prepare_step_context(action_data, step_id):
         if not step:
             return None
         
+        action_dict = dict(action_data)
+        priority_title = action_dict.get('priority_title', 'N/A')
+        
         context = f"""
         **Action Title:** {action_data['action_title']}
         **Action Description:** {action_data['action_description']}
-        **Priority:** {action_data['priority_title'] if action_data['priority_title'] else 'N/A'}
+        **Priority:** {priority_title}
         
         **Specific Step:**
         - **Title:** {step.get('title', '')}
@@ -683,11 +750,13 @@ def _prepare_context_section_context(action_data, section_id):
         }
         
         section_name = context_sections.get(section_id, section_id)
+        action_dict = dict(action_data)
+        priority_title = action_dict.get('priority_title', 'N/A')
         
         context = f"""
         **Action Title:** {action_data['action_title']}
         **Action Description:** {action_data['action_description']}
-        **Priority:** {action_data['priority_title'] if action_data['priority_title'] else 'N/A'}
+        **Priority:** {priority_title}
         
         **Context Section:** {section_name}
         **Full Context:**

@@ -68,7 +68,7 @@ class PriorityExploreModal {
                             <button class="tab-btn" data-tab="notes">📝 Notes</button>
                         </div>
                         
-                        <div class="tab-content">
+                        <div class="tab-panels-container">
                             <!-- Insights Tab -->
                             <div id="tab-insights" class="tab-panel active">
                                 <div class="insights-header">
@@ -297,23 +297,72 @@ class PriorityExploreModal {
     }
 
     async loadInsights() {
-        // This function will need to be updated if insights are moved to the role DB
-        // For now, it can remain as is or be integrated with a new endpoint
+        console.log('[Priority Modal] Loading insights for:', { 
+            priority_id: this.currentPriority.id, 
+            grid_type: this.currentPriority.gridType 
+        });
+        
+        // Try to load insights from saved analysis
+        try {
+            const response = await fetch('/api/priority-insights/saved');
+            if (response.ok) {
+                const data = await response.json();
+                const list = Array.isArray(data.analyses) ? data.analyses : [];
+                console.log('[Priority Modal] Found saved analyses:', list.length);
+                
+                const savedAnalysis = list.find(analysis =>
+                    analysis.priority_id === this.currentPriority.id &&
+                    analysis.grid_type === this.currentPriority.gridType
+                );
+                
+                console.log('[Priority Modal] Matching analysis:', savedAnalysis ? 'Found' : 'Not found');
+                
+                if (savedAnalysis) {
+                    console.log('[Priority Modal] Analysis has insights:', !!savedAnalysis.insights_content);
+                    
+                    if (savedAnalysis.insights_content) {
+                        // Load saved insights
+                        this.currentPriority.insights = {
+                            insights_content: savedAnalysis.insights_content,
+                            created_ts: savedAnalysis.updated_ts || savedAnalysis.created_ts
+                        };
+                        this.updateInsightsContent(this.currentPriority.insights);
+                        return;
+                    }
+                }
+            } else {
+                console.warn('[Priority Modal] Failed to fetch saved analyses:', response.status);
+            }
+        } catch (error) {
+            console.error('[Priority Modal] Error loading saved insights:', error);
+        }
+        
+        // Show empty state if no insights found
+        console.log('[Priority Modal] Showing empty state for insights');
         const insightsContent = document.getElementById('insights-content');
         insightsContent.innerHTML = `<div class="empty-state"><p>Click "Generate Insights" to get AI-powered analysis.</p></div>`;
     }
 
     async loadActions() {
+        console.log('[Priority Modal] Loading actions for:', { 
+            priority_id: this.currentPriority.id, 
+            grid_type: this.currentPriority.gridType 
+        });
+        
         try {
             const response = await fetch(`/api/priority-insights/proposed-actions?priority_id=${this.currentPriority.id}&grid_type=${this.currentPriority.gridType}`);
+            console.log('[Priority Modal] Actions fetch response:', response.status);
+            
             if (response.ok) {
                 const data = await response.json();
+                console.log('[Priority Modal] Actions data:', data.actions ? data.actions.length : 0, 'actions');
                 this.updateActionsContent(data.actions || []);
             } else {
+                console.warn('[Priority Modal] Failed to load actions:', response.status);
                 this.showError('actions-content', 'Failed to load actions.');
             }
         } catch (error) {
-            console.error('Error loading actions:', error);
+            console.error('[Priority Modal] Error loading actions:', error);
             this.showError('actions-content', 'Error loading actions.');
         }
     }
@@ -338,10 +387,12 @@ class PriorityExploreModal {
                 const data = await response.json();
                 this.currentPriority.insights = data.insights; // Store the new insights
                 this.updateInsightsContent(data.insights);
+                
+                // Auto-save insights to the saved analysis if it exists
+                await this.saveInsightsToAnalysis(data.insights);
+                
                 // Switch to insights tab to show the generated content
                 this.switchTab('insights');
-                // The analysis now has unsaved changes, so reflect this in the save button
-                this.updateSaveButtonState(false);
             } else {
                 throw new Error('Failed to generate insights');
             }
@@ -350,6 +401,45 @@ class PriorityExploreModal {
             this.showError('insights-content', 'Failed to generate insights. Please try again.');
         } finally {
             this.setLoading('generate-insights-btn', false);
+        }
+    }
+    
+    async saveInsightsToAnalysis(insights) {
+        try {
+            // Check if this priority is already saved
+            const response = await fetch('/api/priority-insights/saved');
+            if (!response.ok) return;
+            
+            const data = await response.json();
+            const list = Array.isArray(data.analyses) ? data.analyses : [];
+            const savedAnalysis = list.find(analysis =>
+                analysis.priority_id === this.currentPriority.id &&
+                analysis.grid_type === this.currentPriority.gridType
+            );
+            
+            if (savedAnalysis) {
+                // Update the existing saved analysis with insights
+                await fetch(`/api/priority-insights/saved/${savedAnalysis.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        insights_content: insights.insights_content
+                    })
+                });
+                
+                // Refresh workspace metadata
+                if (typeof updateWorkspaceMetadata === 'function') {
+                    updateWorkspaceMetadata();
+                }
+                
+                // Refresh saved analyses list
+                if (typeof loadSavedAnalyses === 'function') {
+                    loadSavedAnalyses();
+                }
+            }
+        } catch (error) {
+            console.error('Error saving insights to analysis:', error);
+            // Don't show error to user, just log it
         }
     }
 
@@ -395,8 +485,16 @@ class PriorityExploreModal {
 
     updateInsightsContent(insights) {
         const content = document.getElementById('insights-content');
+        console.log('[Priority Modal] updateInsightsContent called with:', insights ? 'has insights' : 'no insights');
+        console.log('[Priority Modal] insights-content element exists:', !!content);
+        
+        if (!content) {
+            console.error('[Priority Modal] insights-content element not found!');
+            return;
+        }
         
         if (!insights) {
+            console.log('[Priority Modal] Rendering empty state for insights');
             content.innerHTML = `
                 <div class="empty-state">
                     <p>Click "Generate Insights" to get AI-powered analysis of this priority with current market data.</p>
@@ -405,6 +503,7 @@ class PriorityExploreModal {
             return;
         }
 
+        console.log('[Priority Modal] Rendering insights content');
         content.innerHTML = `
             <div class="insights-display">
                 <div class="insights-meta">
@@ -413,13 +512,23 @@ class PriorityExploreModal {
                 <div class="insights-text">${this.formatInsightsText(insights.insights_content)}</div>
             </div>
         `;
+        console.log('[Priority Modal] Insights content rendered, HTML length:', content.innerHTML.length);
     }
 
     updateActionsContent(actions) {
         const content = document.getElementById('actions-content');
+        console.log('[Priority Modal] updateActionsContent called with:', actions ? actions.length + ' actions' : 'no actions');
+        console.log('[Priority Modal] actions-content element exists:', !!content);
+        
+        if (!content) {
+            console.error('[Priority Modal] actions-content element not found!');
+            return;
+        }
+        
         this.actionsMap.clear();
         
         if (!actions || actions.length === 0) {
+            console.log('[Priority Modal] Rendering empty state for actions');
             content.innerHTML = `
                 <div class="empty-state">
                     <p>Click "Generate Actions" to get specific recommendations for addressing this priority.</p>
@@ -428,6 +537,7 @@ class PriorityExploreModal {
             return;
         }
 
+        console.log('[Priority Modal] Processing actions for rendering');
         // Merge structured actions into flat list by title (case-insensitive), and embed action_json for Explore
         try {
             actions = actions.map(a => {
@@ -436,7 +546,7 @@ class PriorityExploreModal {
                 return { ...a, ...actionDetails };
             });
         } catch(e) {
-            console.error("Error parsing action_json:", e);
+            console.error("[Priority Modal] Error parsing action_json:", e);
         }
 
         const actionsHtml = actions.map(action => {
@@ -511,11 +621,13 @@ class PriorityExploreModal {
             `;
         }).join('');
 
+        console.log('[Priority Modal] Rendering actions HTML');
         content.innerHTML = `
             <div class="actions-list">
                 ${actionsHtml}
             </div>
         `;
+        console.log('[Priority Modal] Actions content rendered, HTML length:', content.innerHTML.length);
     }
 
     updateNotesContent(notes) {
@@ -653,11 +765,16 @@ class PriorityExploreModal {
                 this.updateSaveButtonState(true);
                 
                 // Show success message
-                this.showSuccessMessage('Priority analysis saved successfully!');
+                this.showSuccessMessage('Priority analysis saved to workspace!');
                 
                 // Reload saved analyses in dashboard
                 if (typeof loadSavedAnalyses === 'function') {
-                    loadSavedAnalyses();
+                    await loadSavedAnalyses();
+                }
+                
+                // Update workspace metadata
+                if (typeof updateWorkspaceMetadata === 'function') {
+                    updateWorkspaceMetadata();
                 }
             } else {
                 throw new Error('Failed to save priority analysis');

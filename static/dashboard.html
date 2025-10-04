@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Crazy Fashion Corp - Dashboard</title>
+    <title>Crazy Data Corp - Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/styles.css?v=20251001-fix7" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -12,7 +12,7 @@
   <body>
     <div class="navbar">
       <div class="navbar-inner">
-        <div class="brand"><img class="brand-logo" src="/static/hippo.png" alt="Logo" /> Crazy Fashion Corp</div>
+        <div class="brand"><img class="brand-logo" src="/static/hippo.png" alt="Logo" /> Crazy Data Corp</div>
         <div class="nav-actions">
           <button class="link" id="logout">Logout</button>
         </div>
@@ -117,7 +117,7 @@
             <button class="accordion-toggle" id="saved-analyses-toggle" aria-expanded="false" aria-controls="saved-analyses-content">
               <span class="accordion-icon">▶</span>
               <div class="accordion-title-row">
-                <h2>📚 Workspace</h2>
+                <h2>📚 Saved Priority Workspaces</h2>
               </div>
             </button>
             <div class="accordion-metadata" id="workspace-metadata">
@@ -199,7 +199,18 @@
       
       <!-- legacy analysis panel removed; progress now shown inline above cards -->
       <section class="panel">
-        <h2>Key Performance Indicators</h2>
+        <div class="panel-header">
+          <h2>Key Performance Indicators</h2>
+          <div class="panel-actions">
+            <button class="btn btn-primary" id="btn-add-kpi" style="display: none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Add KPI
+            </button>
+          </div>
+        </div>
         <div id="kpi-grid" class="kpi-grid"></div>
       </section>
         <section class="panel" id="content-section-panel">
@@ -268,7 +279,9 @@
     
     <script src="/static/modal.js"></script>
     <script src="/static/js/components/modals.js"></script>
+    <script src="/static/js/utils/modal-helper.js"></script>
     <script src="/static/js/components/kpi.js"></script>
+    <script src="/static/js/components/kpi-manager.js"></script>
     <script src="/static/js/components/metrics.js"></script>
     <script src="/static/js/components/accordion-metadata.js"></script>
     <script src="/static/js/components/priority-explore-modal.js"></script>

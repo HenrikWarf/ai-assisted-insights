@@ -336,6 +336,86 @@ def api_get_saved_analyses():
         return jsonify({"error": "Failed to get saved analyses"}), 500
 
 
+@priority_insights_bp.route('/api/priority-insights/saved/<int:analysis_id>', methods=['GET'])
+def api_get_saved_analysis(analysis_id):
+    """Get a specific saved priority analysis from the role-specific DB."""
+    user_role = _get_user_role()
+    if not user_role:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        conn = get_role_db_connection(user_role)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM saved_analyses WHERE id = ?", (analysis_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return jsonify({"error": "Analysis not found"}), 404
+        
+        analysis = dict(row)
+        
+        # Parse JSON fields
+        if analysis.get('priority_data'):
+            try:
+                analysis['priority_data'] = json.loads(analysis['priority_data'])
+            except:
+                pass
+        
+        if analysis.get('actions_json'):
+            try:
+                analysis['actions'] = json.loads(analysis['actions_json'])
+            except:
+                analysis['actions'] = []
+        
+        return jsonify({"success": True, "analysis": analysis})
+        
+    except Exception as e:
+        logger.error(f"Error getting saved analysis: {e}")
+        return jsonify({"error": "Failed to get analysis"}), 500
+
+
+@priority_insights_bp.route('/api/priority-insights/saved/<int:analysis_id>', methods=['PUT'])
+def api_update_saved_analysis(analysis_id):
+    """Update a saved priority analysis in the role-specific DB."""
+    user_role = _get_user_role()
+    if not user_role:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        data = request.get_json()
+        insights_content = data.get('insights_content')
+        
+        if not insights_content:
+            return jsonify({"error": "Missing insights_content"}), 400
+        
+        conn = get_role_db_connection(user_role)
+        cursor = conn.cursor()
+        
+        # Update the analysis with insights
+        cursor.execute("""
+            UPDATE saved_analyses 
+            SET insights_content = ?, updated_ts = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (insights_content, analysis_id))
+        
+        if cursor.rowcount == 0:
+            conn.close()
+            return jsonify({"error": "Analysis not found"}), 404
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Updated saved analysis {analysis_id} with insights for role {user_role}")
+        return jsonify({"success": True, "message": "Analysis updated successfully"})
+        
+    except Exception as e:
+        logger.error(f"Error updating saved analysis: {e}")
+        return jsonify({"error": "Failed to update analysis"}), 500
+
+
 @priority_insights_bp.route('/api/priority-insights/saved/<int:analysis_id>', methods=['DELETE'])
 def api_delete_saved_analysis(analysis_id):
     """Delete a saved priority analysis from the role-specific DB."""
@@ -347,16 +427,19 @@ def api_delete_saved_analysis(analysis_id):
         conn = get_role_db_connection(user_role)
         cursor = conn.cursor()
         
-        cursor.execute("DELETE FROM saved_analyses WHERE id = ?", (analysis_id,))
-        success = cursor.rowcount > 0
+        # Check if the analysis exists
+        cursor.execute("SELECT id FROM saved_analyses WHERE id = ?", (analysis_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return jsonify({"error": "Analysis not found"}), 404
         
+        # Delete the analysis
+        cursor.execute("DELETE FROM saved_analyses WHERE id = ?", (analysis_id,))
         conn.commit()
         conn.close()
         
-        if success:
-            return jsonify({"success": True, "message": "Analysis deleted successfully"})
-        else:
-            return jsonify({"error": "Analysis not found or could not be deleted"}), 404
+        logger.info(f"Deleted saved analysis {analysis_id} for role {user_role}")
+        return jsonify({"success": True, "message": "Analysis deleted successfully"})
         
     except Exception as e:
         logger.error(f"Error deleting saved analysis: {e}")
